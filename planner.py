@@ -1,5 +1,5 @@
 from tf import Pose
-from detect import 
+from detect import getGuideLinePosition
 class Planner():
     def __init__(self):
         self.current_pose = Pose()

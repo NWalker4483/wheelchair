@@ -1,12 +1,9 @@
 read QR codes 
 
-Store locations of QR codes in global map
 
 Detect the guiding lines
 
 adjust commands to follow the guiding line
-
-allow for corrections in odom frame based on detections in the map frame and the odom frame
 
 display frame locations
 

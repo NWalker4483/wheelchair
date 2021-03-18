@@ -1,13 +1,12 @@
 import cv2 
 import pyzbar
 from tf import Pose
+
 def getGuideLinePosition(frame):
     pass 
-def getMarkerPose(frame):
-	pass
 
 def checkForMarker(frame):
-	pass
+	return None, None
 # barcodes = pyzbar.decode(frame)
 
 # # loop over the detected barcodes

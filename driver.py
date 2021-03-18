@@ -6,5 +6,5 @@ class Driver():
         self.last_update = None # time of last input 
         self.pose_estimate = None
         pass
-    def update(self): # New command velocities and update your internal pose estimate
+    def update(self, new_cmd): # New command velocities and update your internal pose estimate
         pass

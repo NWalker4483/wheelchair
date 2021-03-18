@@ -9,7 +9,7 @@ from detect import getGuideLinePosition, checkForMarker
 
 qr_map_file = "qr_map.txt"
 
-# Reading the global positions of each QR code
+# Reading the global poses of each QR code
 global_qr_poses = dict()
 print("[INFO] loading global marker position..")
 with open(qr_map_file, "r") as fh:
@@ -57,7 +57,7 @@ while True: # loop over the frames from the video stream
         global_marker_pose_estimate = manager.get_tf(map_frame, base_frame) + local_marker_pose
         manager.set_tf(global_qr_poses[ID] - global_marker_pose_estimate, map_frame, odom_frame)
 
-    new_cmd = planner.update(manager.get_tf(map_frame, base_frame)) # Update the planner with the most current global position estimate
+    new_cmd = planner.update(frame, manager.get_tf(map_frame, base_frame)) # Update the planner with the most current global position estimate
     driver.update(new_cmd)
 # close the output CSV file do a bit of cleanup
 print("[INFO] cleaning up...")

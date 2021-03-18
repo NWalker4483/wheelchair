@@ -18,7 +18,7 @@ class Pose():
         out.rot = (self.rot - other.rot) % 360 # ! It should probably be in radians
         return out
     def __repr__(self):
-        return f"X: {self.x}, Y: {self.y}, ROT: {self.rot}:"
+        return f"X: {self.x}, Y: {self.y}, ROT: {self.rot}"
 class TFManager():
     def __init__(self):
         self.__frames = set()
@@ -26,7 +26,8 @@ class TFManager():
         
     def create_frame(self, frame_name):
         self.__frames.add(frame_name)
-
+    def validate_tf(self):
+        pass
     def init_tf(self, parent_frame, child_frame):
         if parent_frame not in self.__frames:
             pass
@@ -42,5 +43,5 @@ class TFManager():
         self.__tfs[parent_frame][child_frame] = pose
         self.__tfs[child_frame][parent_frame] = Pose() - pose
         
-    def get_tf(self, parent_frame, child_frame): 
+    def get_tf(self, parent_frame, child_frame): # ! Should be recursive
         return self.__tfs[parent_frame][child_frame]
