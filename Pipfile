@@ -4,9 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-zbar-py = "*"
 opencv-python = "*"
-pyzbar = "*"
+pyzbar = {editable = true, git = "https://github.com/sushil-bharati/pyzbar"}
 imutils = "*"
 
 [dev-packages]
