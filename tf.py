@@ -39,7 +39,7 @@ class TFManager():
 
     def init_tf(self, parent_frame, child_frame):
         if parent_frame not in self.__frames:
-            raise (KeyError, "ssd")
+            raise (KeyError, "Error not written yet")
         if child_frame not in self.__frames:
             pass
         self.__tfs[parent_frame][child_frame] = Pose()
