@@ -9,6 +9,7 @@ pyzbar = {editable = true, git = "https://github.com/sushil-bharati/pyzbar"}
 imutils = "*"
 paho-mqtt = "*"
 pygame = "*"
+rpi = "*"
 
 [dev-packages]
 

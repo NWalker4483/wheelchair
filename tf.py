@@ -21,7 +21,6 @@ class Pose():
     def __repr__(self):
         return f"X: {self.x}, Y: {self.y}, ROT: {self.rot}"
 
-
 class TFManager():
     def __init__(self):
         self.__frames = set()
@@ -35,7 +34,9 @@ class TFManager():
         pass
 
     def publish(self, client):
-        client
+        for frame in self.__frames:
+            pose = self.get_tf('map', frame)
+            client.publish("tf", f"{'map'}, {frame}, {pose.x}, {pose.y}, {int(pose.rot)}")
 
     def init_tf(self, parent_frame, child_frame):
         if parent_frame not in self.__frames:
@@ -51,9 +52,16 @@ class TFManager():
         self.__tfs[child_frame][parent_frame] = Pose() - pose
 
     def get_tf(self, parent_frame, child_frame):  # ! Should be recursive
+        if parent_frame ==  child_frame:
+            return Pose()
         if child_frame in self.__tfs[parent_frame]:
             return self.__tfs[parent_frame][child_frame]
         else:
             if len(self.__tfs[parent_frame]) == 0:
-                return Pose()
-            return sum([self.get_tf(parent_frame, cf) for cf in self.__tfs[parent_frame]], Pose())
+                return None
+            else:
+                for frame in self.__tfs[parent_frame]:
+                    tf = self.get_tf(frame, child_frame)
+                    if tf != None:
+                        return self.get_tf(parent_frame,frame) + tf 
+                

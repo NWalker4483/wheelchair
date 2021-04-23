@@ -1,18 +1,17 @@
 # The planner sends commands to the driver and stores the actual position of the robot
 
 from tf import Pose
-from detect import getGuideLinePosition, checkObstacleDetection
-
 class Planner():
-    def __init__(self):
+    def __init__(self, map = None):
         self.current_pose = Pose()
         self.current_goal = Pose()
-
+        self.cmd = None
+    
     def set_goal(self, goal: Pose):
         self.current_goal = goal
-        
-    def update(self, current_pose: Pose):
-        self.current_pose = current_pose
+    
+    def update(self, manager):
+        self.current_pose = manager.get_tf("map", "base_link")
         if self.check_goal():
             return 0, 0
         return 0, 0
