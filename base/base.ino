@@ -5,89 +5,80 @@
 #define GET_ADDRESS 0x46 // 6 bytes
 
 #include <Wire.h>
-#include "SoftwareI2C.h"
 
-SoftwareI2C joyi2c;
+byte buff[6] = {1, 80, 38, 147, 64, 255};
 
-int manual_x = 0; // Middle Value
-int manual_y = 0; // Middle Value
-int auto_x = 0; // Middle Value
-int auto_y = 0; // Middle Values
+bool check_requested = false;
+bool cmd_requested = false
 
-byte buff[6] = {0,0,0,0,0,0};
-bool manual_mode = true;
+void receiveEvent(int howMany)
+{
+  byte x = Wire.read(); //getting from receive FIFO Buffer
+  if(x == CHECK_ADDRESS)
+  {
+    check_requested = true;
+  } else if (x == GET_ADDRESS){
+    cmd_requested = true;
+  }
+}
 
+void requestEvent()
+{
+  if (check_requested && cmd_requested) {
+    for (int i = 0; i < 6; i++){
+      Wire.write(buff[i]);
+    }
+    check_requested = false;
+    cmd_requested = false;
+  } else if (check_requested) {
+    Wire.write(CHECK_RESPONSE);
+  }
+}
 void setup()
 {
-  Serial.begin(9600);           // start serial for output
-  Wire.begin(); // join i2c wheelchair with {{JOYSTICK_ADDRESS}}
-  Wire.onRequest(chairRequest); // register event for when wheelchair requests joystick data
-  Wire.onRecieve();
-  // joyi2c.begin(3, 2); // sda, scl
+  Serial.begin(9600); // start serial for output
+
+  Wire.begin(JOYSTICK_ADDRESS); // join i2c wheelchair with the JOYSTICK_ADDRESS
+  Wire.onRequest(requestEvent);
+  Wire.onRecieve(receiveEvent);
 }
 
-void joystickRequest()
-{
-  byte response[2];
-  if (manual_mode){
-    response[0] = manual_x;
-    response[1] = manual_y;
-  } else {
-    response[0] = auto_x;
-    response[1] = auto_y;
-  }
-   Wire.write(response, 2);
-}
-int a;
-byte x;
-// https://github.com/rricharz/i2c-sniffer-100kBaud-Arduino-Mega
-void ReadJoystickValues(){
-  // int x,y,z; //two axis data
-  //start the communication with IC with the address xx
-  
-  // This needs to happen first
-  Wire.beginTransmission(JOYSTICK_ADDRESS); 
-  Wire.write(0x36); 
-  Wire.endTransmission();
-  Wire.requestFrom(JOYSTICK_ADDRESS, 1); // Expecting a 0x21 response always
-  x = Wire.read();
-  
-  Wire.beginTransmission(JOYSTICK_ADDRESS); 
-  //send a bit and ask for register zero
-  Wire.write(0x46); 
-  //end transmission
-  Wire.endTransmission();
-  Wire.requestFrom(JOYSTICK_ADDRESS, 6); // Expecting a 0x21 response
+// void ReadJoystickValues(){
+//   Wire.beginTransmission(JOYSTICK_ADDRESS); 
+//   Wire.write(CHECK_ADDRESS); 
+//   Wire.endTransmission();
+//   Wire.requestFrom(JOYSTICK_ADDRESS, 1); // Expecting a 0x21 response always
+//   byte c = Wire.read();
+//   if(c != CHECK_RESPONSE){} // Some error has occured
+
+//   Wire.beginTransmission(JOYSTICK_ADDRESS); 
+//   Wire.write(0x46); 
+//   Wire.endTransmission();
+//   Wire.requestFrom(JOYSTICK_ADDRESS, 6);
  
-  if(Wire.available()){
-  int i = 0;
-    while(Wire.available()){
-      buff[i++] = Wire.read();   
-  }
+//   if(Wire.available()){
+//   int i = 0;
+//     while(Wire.available()){
+//       buff[i++] = Wire.read();   
+//   }
+//   }
+// }
+// }
 
-   Serial.println(a);
-   i++;
-  for (int j= 0 ;j < 6; j++){
-     Serial.print(buff[j],HEX);
-     Serial.print(" ");
-     }
-//Serial.print(buff[3]);
-//     Serial.print(" ");
-//Serial.print(buff[1]);
-//     Serial.print(" ");
-   Serial.println(" ");
-  }
-}
-
-void ReadSerialValues(){
-  if (Serial.available()){
-    auto_x = manual_x;
-    auto_y = manual_y;
-  }
-}
+// void ReadSerialValues(){
+  // if (Serial.available()){
+  //   auto_x = manual_x;
+  //   auto_y = manual_y;
+  // }
+// }
 
 void loop()
 {
-   ReadSerialValues();
-   ReadJoystickValues();
-   delay(1);}
+  //  ReadSerialValues();
+  //  ReadJoystickValues();
+  // for (int j= 0 ;j < 6; j++){
+//      Serial.print(buff[j], HEX);
+//      Serial.print(" ");
+//      }
+   delay(1);
+}
