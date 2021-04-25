@@ -21,12 +21,12 @@ void setup()
 {
   Serial.begin(9600);           // start serial for output
   Wire.begin(); // join i2c wheelchair with {{JOYSTICK_ADDRESS}}
-  //Wire.onRequest(chairRequest); // register event for when wheelchair requests joystick data
-  // Wire.onRecieve();
+  Wire.onRequest(chairRequest); // register event for when wheelchair requests joystick data
+  Wire.onRecieve();
   // joyi2c.begin(3, 2); // sda, scl
 }
 
-void chairRequest()
+void joystickRequest()
 {
   byte response[2];
   if (manual_mode){
