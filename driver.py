@@ -1,19 +1,27 @@
-# This class controls all interactions with the motors of the wheelchair
-# The driver controls the motors and stores an internal estimate of where the base is in 2D space
-# import RPi.GPIO as GPIO
 from tf import Pose
-# import pins
+import serial
+
 class Driver(): 
-    def __init__(self, base_frame = 'base_link'):
+    def __init__(self, port):
         self.speed_setting = 3 # 1 - 5
         self.gotManualInput = False
-        self.last_update = None # time of last input 
-        self.pose_estimate = Pose()
+        self.last_update = None # time of last input
+        self.attach(port) 
+        self.facing = False
     
+    def attach(self, serial_port):
+  
+        self.ser = serial.Serial(serial_port, 9600)
+
     def update(self, new_cmd = None): # New command velocities and update your internal pose estimate
         if new_cmd == None:
             pass
         else:
             pass
-    def send_cmd(self, x, y):
-        pass
+
+    def send_cmd(self, linear, angular):
+        values = [ord('#'), linear, angular]
+        self.ser.write(bytearray(values))
+
+    def stop(self):
+        self.send_cmd(0, 0)

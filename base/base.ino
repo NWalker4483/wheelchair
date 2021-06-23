@@ -1,84 +1,45 @@
+#include <Servo.h>
 
-#define JOYSTICK_ADDRESS 0x0C
-#define CHECK_ADDRESS 0x36
-#define CHECK_RESPONSE 0x21
-#define GET_ADDRESS 0x46 // 6 bytes
+#define TOP_MAX_OFFSET 10 // Left/Right
+#define BOT_MAX_OFFSET 15 // Forward/Reverse
+#define TOP_ZERO 68
+#define BOT_ZERO 128
 
-#include <Wire.h>
+Servo upper_servo; // create servo object to control a servo
+const int upper_servo_pin = 3;
+Servo lower_servo; // create servo object to control a servo
+const int lower_servo_pin = 5;
 
-byte buff[6] = {1, 80, 38, 147, 64, 255};
+byte cmd_buffer[2];
 
-bool check_requested = false;
-bool cmd_requested = false
+void stop(){
+    upper_servo.write(TOP_ZERO);
+  lower_servo.write(BOT_ZERO);
+  delay(100);
+  }
+void setup() {
+  Serial.begin(9600);
+  upper_servo.attach(upper_servo_pin);
+  lower_servo.attach(lower_servo_pin);
+  upper_servo.write(TOP_ZERO);
+  lower_servo.write(BOT_ZERO);
+  delay(100);
+}
 
-void receiveEvent(int howMany)
-{
-  byte x = Wire.read(); //getting from receive FIFO Buffer
-  if(x == CHECK_ADDRESS)
+void loop() {
+  if (Serial.available() >= 3) // Full Command is in buffer including start byte
   {
-    check_requested = true;
-  } else if (x == GET_ADDRESS){
-    cmd_requested = true;
-  }
-}
-
-void requestEvent()
-{
-  if (check_requested && cmd_requested) {
-    for (int i = 0; i < 6; i++){
-      Wire.write(buff[i]);
+    if (Serial.read() == '#') // Check Start Byte
+    {
+      for (int i = 0; i < 2; i++) { // Read Command Array Bytes
+        cmd_buffer[i] = Serial.read();
+      }
+       upper_servo.write(constrain(map(cmd_buffer[0],0,127,TOP_ZERO - TOP_MAX_OFFSET, TOP_ZERO + TOP_MAX_OFFSET), TOP_ZERO - TOP_MAX_OFFSET, TOP_ZERO + TOP_MAX_OFFSET));
+       delay(10);
+       lower_servo.write(constrain(map(cmd_buffer[1],127,0,BOT_ZERO - BOT_MAX_OFFSET, BOT_ZERO + BOT_MAX_OFFSET), BOT_ZERO - BOT_MAX_OFFSET, BOT_ZERO + BOT_MAX_OFFSET));
+      Serial.print(cmd_buffer[0]);
+      Serial.print(" ");
+      Serial.println(cmd_buffer[1]);
     }
-    check_requested = false;
-    cmd_requested = false;
-  } else if (check_requested) {
-    Wire.write(CHECK_RESPONSE);
   }
-}
-void setup()
-{
-  Serial.begin(9600); // start serial for output
-
-  Wire.begin(JOYSTICK_ADDRESS); // join i2c wheelchair with the JOYSTICK_ADDRESS
-  Wire.onRequest(requestEvent);
-  Wire.onRecieve(receiveEvent);
-}
-
-// void ReadJoystickValues(){
-//   Wire.beginTransmission(JOYSTICK_ADDRESS); 
-//   Wire.write(CHECK_ADDRESS); 
-//   Wire.endTransmission();
-//   Wire.requestFrom(JOYSTICK_ADDRESS, 1); // Expecting a 0x21 response always
-//   byte c = Wire.read();
-//   if(c != CHECK_RESPONSE){} // Some error has occured
-
-//   Wire.beginTransmission(JOYSTICK_ADDRESS); 
-//   Wire.write(0x46); 
-//   Wire.endTransmission();
-//   Wire.requestFrom(JOYSTICK_ADDRESS, 6);
- 
-//   if(Wire.available()){
-//   int i = 0;
-//     while(Wire.available()){
-//       buff[i++] = Wire.read();   
-//   }
-//   }
-// }
-// }
-
-// void ReadSerialValues(){
-  // if (Serial.available()){
-  //   auto_x = manual_x;
-  //   auto_y = manual_y;
-  // }
-// }
-
-void loop()
-{
-  //  ReadSerialValues();
-  //  ReadJoystickValues();
-  // for (int j= 0 ;j < 6; j++){
-//      Serial.print(buff[j], HEX);
-//      Serial.print(" ");
-//      }
-   delay(1);
 }

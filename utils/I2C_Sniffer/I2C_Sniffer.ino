@@ -41,7 +41,7 @@ byte buffer[BUFFSIZE];
 void setup()
 ////////////
 {
-  Serial.begin(115200);
+  Serial.begin(500000);
   Serial.println("\ni2c sniffer by rricharz\n");
 }
 
@@ -53,6 +53,7 @@ void printHexByte(int b)
   // Serial.print("0x");
   Serial.print((b >> 4) & 0xF, HEX);
   Serial.print(b & 0xF, HEX);
+  if ((b) == 0x46) while(1);
 }
 
 //////////////////

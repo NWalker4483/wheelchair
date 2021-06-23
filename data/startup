@@ -1,0 +1,55 @@
+
+19:56:44.920 -> i2c sniffer by rricharz
+19:56:44.920 -> 
+19:56:44.920 -> Acquiring data
+19:56:47.364 -> Analyzing data, number of transitions = 2966
+19:56:47.364 -> i2c bus activity: * means ACQ = 1 (not ok)
+19:56:47.364 -> Dev=0C W Data=D0 
+19:56:47.364 -> Dev=0C R Data=01 
+19:56:47.364 -> Dev=0C W Data=80 
+19:56:47.364 -> Dev=0C R Data=01 
+19:56:47.364 -> Dev=0C W Data=50 14 
+19:56:47.364 -> Dev=0C R Data=00 56*2B 88 
+19:56:47.364 -> Dev=0C W Data=80 
+19:56:47.364 -> Dev=0C R Data=01 
+19:56:47.364 -> Dev=0C W Data=50 16 
+19:56:47.364 -> Dev=0C R Data=00 42 21 48 
+19:56:47.364 -> Dev=0C W Data=80 
+19:56:47.364 -> Dev=0C R Data=01 
+19:56:47.364 -> Dev=0C W Data=50 18 
+19:56:47.364 -> Dev=0C R Data=00 42 20*48 
+19:56:47.364 -> Dev=0C W Data=80 
+19:56:47.364 -> Dev=0C R Data=01 
+19:56:47.364 -> Dev=0C W Data=50 1A 
+19:56:47.364 -> Dev=0C R Data=00 60 30 48 
+19:56:47.364 -> Dev=0C W Data=80 
+19:56:47.364 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=50 1C 
+19:56:47.397 -> Dev=0C R Data=00 60 30 48 
+19:56:47.397 -> Dev=0C W Data=80 
+19:56:47.397 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=50 1E 
+19:56:47.397 -> Dev=0C R Data=00 40 30*48 
+19:56:47.397 -> Dev=0C W Data=80 
+19:56:47.397 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=50 20 
+19:56:47.397 -> Dev=0C R Data=00 40 30 48 
+19:56:47.397 -> Dev=0C W Data=F0 
+19:56:47.397 -> Dev=0C R Data=04 00 40 50*
+19:56:47.397 -> Dev=0C R*Data=FF 
+19:56:47.397 -> Dev=0C W Data=60 40 2E 00 
+19:56:47.397 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=80 
+19:56:47.397 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=60 70*40 02 
+19:56:47.397 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=80 
+19:56:47.397 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=60 00*72*04 
+19:56:47.397 -> Dev=0C R Data=01 
+19:56:47.397 -> Dev=0C W Data=36 
+19:56:47.397 -> Dev=0C R Data=21 
+19:56:47.397 -> Dev=0C W Data=46 // Start normal operations
+
+
+

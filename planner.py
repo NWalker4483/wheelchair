@@ -11,7 +11,6 @@ class Planner():
         self.current_goal = goal
     
     def update(self, manager):
-        self.current_pose = manager.get_tf("map", "base_link")
         if self.check_goal():
             return 0, 0
         return 0, 0
