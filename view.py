@@ -1,37 +1,15 @@
 #!/usr/bin/env python3
-import paho.mqtt.client as mqtt  # import the client
-import struct
+import paho.mqtt.client as mqtt  
 import pygame
 import utils.colors as colors
 import numpy as np
-from tf import Pose, TFManager
 
-class QrMarker(pygame.rect.Rect):
-    def __init__(self, left, top, width, height, ID):
-        super().__init__(left, top, width, height)
-        self.id = ID
-        self.dragging = False
-        
 def on_connect(client, userdata, flags, rc):
     client.subscribe("tf")
           
 def on_message(client, userdata, msg):
-    global global_qr_poses
-    global manager
     if msg.topic == "tf":
-        f1, f2, x, y, rot = [i.strip() for i in msg.payload.decode().split(",")]
-        manager.set_tf(Pose(float(x), float(y), float(rot)),f1, f2)
-
-
-manager = TFManager()
-
-manager.create_frame('map')
-manager.create_frame('odom')
-manager.create_frame('base_link')
-
-manager.init_tf('map', 'odom')
-manager.init_tf('odom', 'base_link')
-
+        pass
 FPS = 30
 pygame.init()
 pygame.display.set_caption("Tracking System")

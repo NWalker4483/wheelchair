@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-from driver import Driver
-from detector import Detector
-
-import time
-from tf import Pose
+from wheelchair.driver import Driver
+from wheelchair.detector import Detector
 from map_tools import QrMap 
 
 driver = Driver('/dev/ttyUSB0')
-detector = Detector('data/green.mp4')
+detector = Detector('test_data/green.mp4')
+
+def run_path(start, stop):
+    pass
 
 start, stop = 1, 3
 
@@ -16,12 +16,10 @@ a = 0
 last_step = start
 path = m.get_plan(start, stop)
 
-def align(direction, detector, driver):
-    # direction {0: Top, 1: Bottom, 2: Left, 3: Right}
-    driver.stop()
-    last_pose = None
-    pass
+
 def follow_line(detector, driver):
+    pass
+def follow_line_until(detector, driver, ID):
     pass
 
 started = False
@@ -35,12 +33,10 @@ try:
             break
         if ID != None: # Marker in frame
             if ID not in [path[step - 1 if step > 0 else 0], path[step], path[step + 1 if step < len(path) else 0]]: # We got lost
-                print(3)
-            # We're on the next step
-            elif ID == path[step]: 
-                print(1)
-                direction = a.get_connection_direction(stop, path[step + 1]) # Face Direction 
-                align(direction, detector, driver)
+                print("How'd I get here")
+            elif ID == path[step]: # We're on the next step
+                direction = a.get_connection_direction(path[step], path[step + 1]) # Face Direction 
+                driver.face(direction, detector, ID)
                 step += 1
             elif last_stop == path[step]: # We still havent found the first marker
                 continue

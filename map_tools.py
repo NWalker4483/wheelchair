@@ -7,8 +7,8 @@ class QrMap():
             1: [0,3,0,0], 
             2: [0,3,0,0], 
             3: [4,2,0,1], 
-            4: [3,0,0,0]
-        }
+            4: [3,0,0,0]}
+
     def get_connection_direction(self, start,other):
         try:
             return [i for i in range(4) if self.__connections[start][i] == other][0]
@@ -46,7 +46,7 @@ class QrMap():
 
     @staticmethod
     def load(filename):
-        pass
+        return QrMap()
 if __name__ == '__main__':
     a = QrMap()
     print(a.get_plan(1,4))

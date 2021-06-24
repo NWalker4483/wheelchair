@@ -1,0 +1,1 @@
+Once both the wheelchair and the host device have been set up
