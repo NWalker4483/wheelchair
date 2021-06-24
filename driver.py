@@ -8,9 +8,10 @@ class Driver():
         self.last_update = None # time of last input
         self.attach(port) 
         self.facing = False
+        self.linear = 0
+        self.angular = 0
     
     def attach(self, serial_port):
-  
         self.ser = serial.Serial(serial_port, 9600)
 
     def update(self, new_cmd = None): # New command velocities and update your internal pose estimate

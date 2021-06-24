@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Jun 11th - Jun 20th 2021</title>
+        <style>
+</style>
+        
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item { list-style-type: none; } .task-list-item-checkbox { margin-left: -20px; vertical-align: middle; }
+</style>
+        
+        
+        
+    </head>
+    <body class="vscode-body vscode-light">
+        <h1 id="jun-11th---jun-20th-2021">Jun 11th - Jun 20th 2021</h1>
+<p>by: Nile Walker</p>
+<p>This update took a while and was mostly focused on software updates, quality of life improvements, and the reinstallation of the controlling hardware.</p>
+<img width="400px" src="file:////Users/nilewalker/Projects/GitHub/wheelchair/updates/Jun 11th - Jun 20th 2021/chair.jpg" alt="chair"/>
+<h2 id="software"><strong>Software</strong></h2>
+<h3 id="map-building">Map Building</h3>
+<p>The planning software is essentially the same except for the fact that instead of storing global position and rotation of the QR codes we simply store their relationship to one another. For example instead of storing that QR code 1 is at (x, y) position (1, 1) and QR code 2 is that position (1, 3) rotated at 90°, We now store that QR code 1's top edge is connected to QR code 2's right edge.</p>
+<pre><code class="language-python"><div><span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">QrMap</span>():</span>
+    <span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">__init__</span>(<span class="hljs-params">self</span>):</span>
+        self.__connections = {
+            <span class="hljs-comment"># [top, bottom, left, right]</span>
+            <span class="hljs-number">1</span>: [<span class="hljs-number">0</span>,<span class="hljs-number">3</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>], 
+            <span class="hljs-number">2</span>: [<span class="hljs-number">0</span>,<span class="hljs-number">3</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>], 
+            <span class="hljs-number">3</span>: [<span class="hljs-number">4</span>,<span class="hljs-number">2</span>,<span class="hljs-number">0</span>,<span class="hljs-number">1</span>], 
+            <span class="hljs-number">4</span>: [<span class="hljs-number">3</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>]
+        }
+</div></code></pre>
+<p>This information is sufficient to determine what type of turns we need to make an order to traverse the map and better exploits the benefits of using a guiding line between all markers.</p>
+<h3 id="software-control">Software Control</h3>
+<p>While the servo method has proved reliable enough, I still feel as though pursuing software based control is the logical next step as it allows us to give manual control to the rider without having a to build our own joystick into the wheelchair. There hasn't been any progress on that front so far nor has there been any real focus, but I'm waiting on a logic analyzer to come in and hopefully that will allow me to more clearly understand whats going on between the sensor and wheelchair.</p>
+<h2 id="hardware"><strong>Hardware</strong></h2>
+<h3 id="power-switch"><strong>Power Switch</strong></h3>
+<img width="400px" src="file:////Users/nilewalker/Projects/GitHub/wheelchair/updates/Jun 11th - Jun 20th 2021/switch.jpg" alt="switch"/>
+<p>Instead of connecting directly to the wheelchair I added a simple switch that allows us to shut off the pi/arduino electronics without disconnecting the wheelchair battery.</p>
+<h3 id="emergency-stop"><strong>Emergency Stop</strong></h3>
+<p>I also added an additional switch that will separate the ground for the sensor from the wheelchairs mainboard causing it to stop immediately. This is in case the raspberry pi shut down loses power or generally malfunctions we can more quickly disable the wheelchair since turning it off the normal way requires holding the power button down.</p>
+<h3 id="mounting"><strong>Mounting</strong></h3>
+<p>I instead of relying on gluing components into the battery box I added some Velcro and I'm just velcroing the components in so that they can be removed or adjusted as necessary.</p>
+<img width="400px" src="file:////Users/nilewalker/Projects/GitHub/wheelchair/updates/Jun 11th - Jun 20th 2021/velcro.jpg" alt="velcro"/>
+<h2 id="usability"><strong>Usability</strong></h2>
+<p>I've also had a documentation to the github. Describing how to create a new QR code map and how to run the navigation software. It's in its early stages and will be adjusted as other features are added but should be enough for the incoming team of developers to test the platform on their own.</p>
+
+    </body>
+    </html>

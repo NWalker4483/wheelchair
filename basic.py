@@ -11,7 +11,6 @@ detector = Detector('data/green.mp4')
 
 start, stop = 1, 3
 
-
 m = QrMap()
 a = 0
 last_step = start
@@ -22,12 +21,13 @@ def align(direction, detector, driver):
     driver.stop()
     last_pose = None
     pass
-def follow_line( detector, driver):
+def follow_line(detector, driver):
     pass
 
 started = False
 
 step = 0 
+last_stop = path[0]
 try:
     while True:  # loop over the frames from the video stream
         ID, local_marker_pose = detector.update()
@@ -51,4 +51,4 @@ except Exception as e:
 finally:
     print('[INFO] cleaning up...')
     driver.stop()
-    client.disconnect()
+    # client.disconnect()

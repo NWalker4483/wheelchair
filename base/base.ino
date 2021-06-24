@@ -5,6 +5,8 @@
 #define TOP_ZERO 68
 #define BOT_ZERO 128
 
+#define TIMEOUT_SECONDS 3
+
 Servo upper_servo; // create servo object to control a servo
 const int upper_servo_pin = 3;
 Servo lower_servo; // create servo object to control a servo
@@ -25,12 +27,13 @@ void setup() {
   lower_servo.write(BOT_ZERO);
   delay(100);
 }
-
+unsigned long last_cmd;
 void loop() {
   if (Serial.available() >= 3) // Full Command is in buffer including start byte
   {
     if (Serial.read() == '#') // Check Start Byte
     {
+      last_cmd = millis();
       for (int i = 0; i < 2; i++) { // Read Command Array Bytes
         cmd_buffer[i] = Serial.read();
       }
@@ -42,4 +45,7 @@ void loop() {
       Serial.println(cmd_buffer[1]);
     }
   }
+  if ((millis() - last_cmd) >= 1000 * TIMEOUT_SECONDS){
+    stop();
+    }
 }
