@@ -34,11 +34,11 @@ class Driver():
         max_det_gap: 
         """
         goal_rotations = {0: 0, 1: 180, 2: 90, 3: 270}
-        current_rotation = 77
+        current_rotation = 45
         gap = 0 
         while abs(current_rotation - goal_rotations[direction]) > tolerance:
             if gap >= max_det_gap:
-                break
+                raise Exception("Tracking lost For too long")
             seen, local_marker_pose = detector.update()
             if seen == ID:
                 gap = 0

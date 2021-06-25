@@ -11,14 +11,14 @@ def run_path(start, stop):
 
 start, stop = 1, 3
 
-m = QrMap()
-a = 0
+map = QrMap()
 last_step = start
-path = m.get_plan(start, stop)
+path = map.get_plan(start, stop)
 
 
 def follow_line(detector, driver):
     pass
+
 def follow_line_until(detector, driver, ID):
     pass
 
@@ -35,7 +35,7 @@ try:
             if ID not in [path[step - 1 if step > 0 else 0], path[step], path[step + 1 if step < len(path) else 0]]: # We got lost
                 print("How'd I get here")
             elif ID == path[step]: # We're on the next step
-                direction = a.get_connection_direction(path[step], path[step + 1]) # Face Direction 
+                direction = map.get_connection_direction(path[step], path[step + 1]) # Face Direction 
                 driver.face(direction, detector, ID)
                 step += 1
             elif last_stop == path[step]: # We still havent found the first marker

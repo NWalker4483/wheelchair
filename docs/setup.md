@@ -8,6 +8,7 @@ sfs
 ### Dependancies
 All python dependencies are managed by pipenv. Once you've downloaded the git repository onto both the host and wheelchair devices run pipenv install to install the required modules.
 ### Arduino 
+#### udev rules
 
 ### Networing 
 How to run the syrup reliably you'll need to reserve an IP address for the base station you'll be using

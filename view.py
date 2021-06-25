@@ -40,13 +40,6 @@ qr_map_file = "qr_map.txt"
 # Reading the global poses of each QR code
 global_qr_poses = dict()
 markers = []
-print("[INFO] loading global marker position..")
-with open(qr_map_file, "r") as fh:
-    for line in fh:
-        ID, pose = line.split(',', 1)
-        x, y, rot = [int(i) for i in pose.strip()[1:-1].split(',')]
-        global_qr_poses[int(ID)] = Pose(x, y, rot) 
-        print(f"Marker {ID}: {global_qr_poses[int(ID)]}")
 
 while running:
     client.loop(timeout=.1)
