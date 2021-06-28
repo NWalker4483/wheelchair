@@ -43,7 +43,7 @@ def on_message(client, userdata, msg):
 
 client = mqtt.Client()
 client.connect('localhost', 1883, 60)
-
+print("Starting Wheelchair Base")
 client.on_connect = on_connect
 client.on_message = on_message
 running = False
