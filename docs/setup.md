@@ -10,7 +10,17 @@ All python dependencies are managed by pipenv. Once you've downloaded the git re
 ### Arduino 
 #### udev rules
 
-### Networing 
-How to run the syrup reliably you'll need to reserve an IP address for the base station you'll be using
+### Networing
+
+How to run the setup reliably you'll need to reserve an IP address for the base station you'll be using
+
+ (Install MQTT](<https://www.arrow.com/en/research-and-events/articles/mqtt-tutorial>) on the raspberry pie so that it can host The transfer of data between the controller and the wheelchair
 
 ### Automation
+If we add dython code to the start up procedures of the pie we can turn on wireless control automatically whenever the pi has power
+
+https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-startup/
+{{Add a more detailed description}}
+
+
+https://unix.stackexchange.com/questions/455261/how-to-set-environmental-variable-in-systemd-service
