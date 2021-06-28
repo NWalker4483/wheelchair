@@ -13,7 +13,6 @@ goal_update_topic = 'goal'
 def on_connect(client, userdata, flags, rc):
     client.subscribe(map_update_topic)
     client.subscribe(goal_update_topic)
-    print('Connected with result code ' + str(rc))
 
 
 def on_message(client, userdata, msg):

@@ -82,9 +82,13 @@ class Detector():
         frame = self.getFrame()
         self.guide_pose = self.getGuideLinePosition(frame)
         self.marker_id, self.marker_pose = self.checkForMarker(frame)
-
+        debug = True 
         if debug:
-            return self.drawDebug(frame)
+            # return self.drawDebug(frame)
+            cv2.imshow("d", self.drawDebug(frame))
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                pass
+            return self.marker_id, self.marker_pose
         else:
             return self.marker_id, self.marker_pose
 
@@ -96,13 +100,12 @@ class Detector():
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
         pnts = []
-        self.avg_points = []
+        self.avg_points = [(0,0)]
         self.mask_points = []
         # Separate the image into strips of height 20
         for y in range(0, mask.shape[0], 20):
             vals = []
             for i in range(0, 15, 5):  # Sample each of the strips four times
-
                 for x in range(0, mask.shape[1], 5):
                     if mask[y + i][x] > 125:
                         vals.append([x, y + i])
@@ -110,7 +113,7 @@ class Detector():
                 pnts.append(np.mean(vals, axis=0))
             self.mask_points += vals
         self.avg_points += pnts
-        return Pose(*self.avg_points[0], rot=0)
+        return None # Pose(*self.avg_points[0], rot=0)
 
     def checkForMarker(self, frame):
         """find the two left side corners of a QR marker and return it to pose and ID"""
@@ -167,7 +170,7 @@ class Detector():
 
 
 if __name__ == '__main__':
-    det = Detector("test_data/green.mp4")
+    det = Detector(0)
 
     while True:  # loop over the frames from the video stream
         cv2.imshow("d", det.update(True))

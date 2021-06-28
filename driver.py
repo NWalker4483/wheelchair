@@ -1,5 +1,5 @@
-from tf import Pose
 import serial
+from serial import Serial
 import time
 from detector import Detector
 """
@@ -25,51 +25,55 @@ class Driver():
         self.attach(port) 
         self.linear = 0 # Upper Servo
         self.angular = 0  # Lower Servo
-        self.rotation_speed = 50 # 0:100%
+        self.rotation_speed = 30 # 0:100%
     
-    def face(self, direction, detector, ID, tolerance = 10, max_det_gap = 120):
+    def face(self, direction, detector, ID, tolerance = 10, max_det_gap = 200):
         """
         direction {0: Top, 1: Bottom, 2: Left, 3: Right}
 
         max_det_gap: 
         """
-        goal_rotations = {0: 0, 1: 180, 2: 90, 3: 270}
+        goal_rotations = {0: 90, 1: 180, 2: 0, 3: 270}
         current_rotation = 45
         gap = 0 
         while abs(current_rotation - goal_rotations[direction]) > tolerance:
             if gap >= max_det_gap:
-                raise Exception("Tracking lost For too long")
+                self.stop()
+                # raise Exception("Tracking lost For too long")
             seen, local_marker_pose = detector.update()
             if seen == ID:
                 gap = 0
                 current_rotation = local_marker_pose.rot
+                print(current_rotation,  goal_rotations[direction])
             else:
                 gap += 1
             if current_rotation > goal_rotations[direction]:
                 self.send_cmd(0, self.rotation_speed)
             else: 
                 self.send_cmd(0, -self.rotation_speed)
+        #
 
     def attach(self, serial_port):
-        self.ser = serial.Serial(serial_port, 9600)
+        self.ser = Serial(serial_port, 9600)
 
     def send_cmd(self, linear, angular):
         # TODO: Constrain 
         self.linear, self.angular = linear, angular
 
         linear_cmd = int(translate(linear, -100, 100, 0, 127))
-        angular_cmd = int(translate(linear, -100, 100, 0, 127))
+        angular_cmd = int(translate(angular, -100, 100, 0, 127))
 
-        values = [ord('#'), linear_cmd, angular_cmd]
+        values = [ord('#'),angular_cmd, linear_cmd]
+        print(values)
         self.ser.write(bytearray(values))
 
     def stop(self):
         self.send_cmd(0, 0)
 if __name__ == '__main__':
-    drive = Driver()
+    drive = Driver('/dev/ttyACM0')
     try:
         while True:
-            linear, angular = [int(i) for i in input("{linear} {angular}\n")][:2]
+            linear, angular = [int(i) for i in input("{linear} {angular}\n").split()][:2]
             drive.send_cmd(linear, angular)
             time.sleep(1)
     finally:
