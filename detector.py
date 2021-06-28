@@ -80,7 +80,7 @@ class Detector():
     def update(self, debug=False):
         # self.checkObstacleDetection()
         frame = self.getFrame()
-        self.guide_pose = self.getGuideLinePosition(frame)
+        # self.guide_pose = self.getGuideLinePosition(frame)
         self.marker_id, self.marker_pose = self.checkForMarker(frame)
         debug = True 
         if debug:
@@ -93,7 +93,7 @@ class Detector():
             return self.marker_id, self.marker_pose
 
     def getGuideLinePosition(self, img):
-        img = imutils.resize(img, width=200)
+        img = imutils.resize(img, width=100)
         lower_hsv = np.array([40, 46, 77])
         upper_hsv = np.array([144, 210, 227])
         img = cv2.medianBlur(img, 5)
@@ -107,7 +107,7 @@ class Detector():
             vals = []
             for i in range(0, 15, 5):  # Sample each of the strips four times
                 for x in range(0, mask.shape[1], 5):
-                    if mask[y + i][x] > 125:
+                    if mask[y ][x] > 125:
                         vals.append([x, y + i])
             if len(vals) > 0:
                 pnts.append(np.mean(vals, axis=0))

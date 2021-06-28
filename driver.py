@@ -33,7 +33,7 @@ class Driver():
 
         max_det_gap: 
         """
-        goal_rotations = {0: 90, 1: 180, 2: 0, 3: 270}
+        goal_rotations = {0: 90, 1: 270, 2: 0, 3: 180}
         current_rotation = 45
         gap = 0 
         while abs(current_rotation - goal_rotations[direction]) > tolerance:
