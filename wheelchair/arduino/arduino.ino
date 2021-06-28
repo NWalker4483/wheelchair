@@ -3,11 +3,13 @@
 #define TOP_MAX_OFFSET 10 // Left/Right
 #define BOT_MAX_OFFSET 10 // Forward/Reverse
 
+#define BOT_MIN 110
+#define BOT_ZERO 128
+#define BOT_MAX 130
+
 #define TOP_MIN 60
 #define TOP_ZERO 68
 #define TOP_MAX 78
-
-#define BOT_ZERO 128
 
 #define TIMEOUT_SECONDS 3
 
@@ -17,17 +19,6 @@ Servo lower_servo; // create servo object to control a servo
 const int lower_servo_pin = 5;
 
 byte cmd_buffer[2];
-void setLinear(int val){//-100:100
-   Serial.print(" Linear: ");
-  val = map(val, -100, 100, BOT_ZERO - BOT_MAX_OFFSET, BOT_ZERO + BOT_MAX_OFFSET);
-  val = constrain(val, BOT_ZERO - BOT_MAX_OFFSET, BOT_ZERO + BOT_MAX_OFFSET);
-   lower_servo.write(val);
-   
-    Serial.println(val);
-  
-   delay(50);
-   
- }
  void setAngular(int val){
   Serial.print("Angular: ");
   val = map(val, -100, 100, TOP_MIN, TOP_MAX);
@@ -36,6 +27,15 @@ void setLinear(int val){//-100:100
    Serial.println(val);
    delay(50);
   }
+ void setLinear(int val){
+  Serial.print("Linear: ");
+  val = map(val, -100, 100, BOT_MIN, BOT_MAX);
+  val = constrain(val, BOT_MIN, BOT_MAX);
+   lower_servo.write(val);
+   Serial.println(val);
+   delay(50);
+  }
+
  void setState(int linear, int angular){
   }
 void stop(){
