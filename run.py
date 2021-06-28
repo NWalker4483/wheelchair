@@ -23,7 +23,6 @@ def on_message(client, userdata, msg):
         print(msg.payload.decode())
     elif msg.topic == goal_update_topic:
         print(msg.payload.decode())
-        planner.set_goal(Pose())
 
 client = mqtt.Client()
 client.connect('localhost', 1883, 60)

@@ -51,13 +51,11 @@ class Driver():
                 self.send_cmd(0, self.rotation_speed)
             else: 
                 self.send_cmd(0, -self.rotation_speed)
-        #
 
     def attach(self, serial_port):
         self.ser = Serial(serial_port, 9600)
 
     def send_cmd(self, linear, angular):
-        # TODO: Constrain 
         self.linear, self.angular = linear, angular
 
         linear_cmd = int(translate(linear, -100, 100, 0, 127))
