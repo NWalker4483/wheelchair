@@ -11,7 +11,7 @@
 #define TOP_ZERO 68
 #define TOP_MAX 78
 
-#define TIMEOUT_SECONDS 3
+#define TIMEOUT_SECONDS 2
 
 Servo upper_servo; // create servo object to control a servo
 const int upper_servo_pin = 3;
@@ -19,13 +19,14 @@ Servo lower_servo; // create servo object to control a servo
 const int lower_servo_pin = 5;
 // ! Temp
 /*
+Front of chair
  \  |  /
  <- * ->
  /  |  \
 */
-int states[3][3][2] = {{{60,130},{68,130},{78,130}},
-                    {{60,128},{TOP_ZERO, BOT_ZERO},{78,128}},
-                    {{60,110},{68,110},{78,110}}};
+int states[3][3][2] = {{{120,64},{110,68},{120,76}},
+                    {{128,64},{BOT_ZERO, TOP_ZERO},{128,74}},
+                    {{110,64},{134,68},{134,74}}};
 
 byte cmd_buffer[2];
  void setAngular(int val){
@@ -45,24 +46,25 @@ byte cmd_buffer[2];
    delay(50);
   }
 
- void setState(int angular, int linear){
+ void setState(int linear, int angular ){
   int x, y;
   x = 0; 
-  y = 0;
-  if (angular == 0){
-    x = 1;
-    }
-    else if (angular > 0){x = 2;}
-    else if (angular < 0){x = 0;}
-   if (linear == 0){
-    y = 1;
-    }
-    else if (linear > 0){y = 0;}
-    else if (linear < 0){y = 2;}
-    upper_servo.write(states[y][x][0]);
-    delay(50);
-    lower_servo.write(states[y][x][0]);
-    delay(50);
+  y = 0; 
+  if (abs(linear) <= 10){y = 1;}
+  else if (linear > 0){y = 0;}
+  else if (linear < 0){y = 2;}
+  if (abs(angular) <= 10){x = 1;}
+  else if (angular > 0){x = 2;}
+  else if (angular < 0){x = 0;}
+  Serial.print("Linear: ");
+  Serial.print(states[y][x][0]);
+  Serial.print(" ");
+   Serial.print("Angular: ");
+  Serial.println(states[y][x][1]);
+//  Serial.println(linear);
+//  Serial.println(angular);
+  lower_servo.write(states[y][x][0]);
+  upper_servo.write(states[y][x][1]);
   }
   
 void stop(){
@@ -93,7 +95,7 @@ void loop() {
       }
 //      setAngular(map(cmd_buffer[0],0,127,-100,100));
 //      setLinear(map(cmd_buffer[1],0,127,-100,100));
-      setState(map(cmd_buffer[0],0,127,-100,100),map(cmd_buffer[0],0,127,-100,100));
+      setState(map(cmd_buffer[0],0,127,-100,100), map(cmd_buffer[1],0,127,-100,100));
     }
   }
   if ((millis() - last_cmd) >= 1000 * TIMEOUT_SECONDS){

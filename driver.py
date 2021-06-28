@@ -61,7 +61,7 @@ class Driver():
         linear_cmd = int(translate(linear, -100, 100, 0, 127))
         angular_cmd = int(translate(angular, -100, 100, 0, 127))
 
-        values = [ord('#'),angular_cmd, linear_cmd]
+        values = [ord('#'),linear_cmd, angular_cmd]
         print(values)
         self.ser.write(bytearray(values))
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-from wheelchair.driver import Driver
-from wheelchair.detector import Detector
+from driver import Driver
+from detector import Detector
 from map_tools import QrMap 
 
-driver = Driver('/dev/ttyUSB0')
-detector = Detector('test_data/green.mp4')
+driver = Driver('/dev/ttyACM0')
+detector = Detector(0)
 
 def run_path(start, stop):
     pass
