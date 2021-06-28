@@ -3,7 +3,7 @@ import paho.mqtt.client as mqtt
 from driver import Driver
 from detector import Detector
 
-driver = Driver('/dev/cu.usbmodem1432201')
+driver = Driver('/dev/ttyACM0')
 detector = Detector(0)
 
 control_update_topic = 'control_update'
