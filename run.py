@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import paho.mqtt.client as mqtt
 from driver import Driver
 from detector import Detector
 
@@ -9,14 +8,24 @@ detector = Detector(0)
 control_update_topic = 'control_update'
 goal_update_topic = 'goal'
 
-def on_connect(client, userdata, flags, rc):
-    client.subscribe(control_update_topic)
-    client.subscribe(goal_update_topic)
+# Import socket module 
+import socket             
+  
+# Create a socket object 
+s = socket.socket()         
+  
+# Define the port on which you want to connect 
+port = 12345                
+  
+# connect to the server on local computer 
+host = "192.168.0.4" # '127.0.0.1'
+s.connect((host, port)) 
+  
+# receive data from the server 
+print (s.recv(1024) )
+# close the connection 
+s.close()     
 
-
-def on_message(client, userdata, msg):
-    global map_update_topic
-    global driver
     if msg.topic == control_update_topic:
         payload = msg.payload.decode()
         payload = payload.lower()
@@ -38,20 +47,17 @@ def on_message(client, userdata, msg):
             driver.send_cmd(-100,0)
         elif (payload == 'c'):
             driver.send_cmd(-100,100)
+        
     elif msg.topic == goal_update_topic:
         print(msg.payload.decode())
 
-client = mqtt.Client()
-client.connect('localhost', 1883, 60)
+
+
 print("Starting Wheelchair Base")
-client.on_connect = on_connect
-client.on_message = on_message
 running = False
 try:
     while True:  # loop over the frames from the video stream
-        client.loop(timeout=.1)
-        if running:
-            pass
+
 except Exception as e:
     raise(e)
 finally:

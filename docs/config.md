@@ -23,4 +23,7 @@ class QrMap():
         }
 ```
 
-The top of a QR code is described as such
+The top of a QR code is described as such 
+<add image>
+
+As long as the connections between the map and the actual QR codes are consistent the wheelchair should be able to go anywhere along the guiding line and navigate the intersections.
