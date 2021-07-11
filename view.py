@@ -3,24 +3,28 @@ import paho.mqtt.client as mqtt
 import pygame
 import utils.colors as colors
 import numpy as np
+import time
 
-def on_connect(client, userdata, flags, rc):
-    client.subscribe("tf")
-          
-def on_message(client, userdata, msg):
-    if msg.topic == "tf":
-        pass
+
 FPS = 30
 pygame.init()
 pygame.display.set_caption("Tracking System")
 
-# Connect to broker
-broker_address = "192.168.0.4"
-client = mqtt.Client("Master")
-client.connect(broker_address)
-client.on_connect = on_connect
 
-client.on_message = on_message
+import socket               # Import socket module
+
+s = socket.socket()         # Create a socket object
+host = socket.gethostname() # Get local machine name
+port = 12345                # Reserve a port for your service.
+s.bind((host, port))        # Bind to the port
+
+s.listen(5)                 # Now wait for client connection.
+while True:
+   c, addr = s.accept()     # Establish connection with client.
+   print ('Got connection from', addr)
+   c.send('Thank you for connecting')
+   c.close()                # Close the connection
+
 Length, Width, Height = 41.91, 55.88, 30  # cm
 
 # Setup pygame
@@ -53,30 +57,39 @@ while running:
     if pressed[pygame.K_q]:
         client.publish(control_update_topic, "q")
         print("q")
+        time.sleep(1/24)
     elif pressed[pygame.K_w]:
         client.publish(control_update_topic, "w")
         print("w")
+        time.sleep(1/24)
     elif pressed[pygame.K_e]:
         client.publish(control_update_topic, "e")
         print("e")
+        time.sleep(1/24)
     elif pressed[pygame.K_a]:
         client.publish(control_update_topic, "a")
         print("a")
+        time.sleep(1/24)
     elif pressed[pygame.K_s]:
         client.publish(control_update_topic, "s")
         print("s")
+        time.sleep(1/24)
     elif pressed[pygame.K_d]:
         client.publish(control_update_topic, "d")
         print("d")
+        time.sleep(1/24)
     elif pressed[pygame.K_z]:
         client.publish(control_update_topic, "z")
         print("z")
+        time.sleep(1/24)
     elif pressed[pygame.K_x]:
         client.publish(control_update_topic, "x")
         print("x")
+        time.sleep(1/24)
     elif pressed[pygame.K_c]:
         client.publish(control_update_topic, "c")
         print("c")
+        time.sleep(1/24)
     
       
     # - draws (without updates) -
