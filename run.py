@@ -48,6 +48,7 @@ s.close()
         elif (payload == 'c'):
             driver.send_cmd(-100,100)
         
+        
     elif msg.topic == goal_update_topic:
         print(msg.payload.decode())
 
