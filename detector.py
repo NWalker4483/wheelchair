@@ -1,4 +1,3 @@
-import cv2
 import time
 import cv2
 from pyzbar.pyzbar import decode
@@ -6,69 +5,71 @@ from tf import Pose
 from math import pi, acos
 import numpy as np
 import time
-import imutils
-from imutils.video import VideoStream, FileVideoStream
-
-
-
-
+from io import BytesIO
+from time import sleep
+from picamera import PiCamera
+from PIL import Image
 
 class Detector():
     def __init__(self, filename=None):
-        if filename == None:
-            self.vs = VideoStream(0)
-        else:
-            self.vs = FileVideoStream(filename)
 
-        self.vs.start()
+        self.camera = PiCamera()
+        self.camera.start_preview()
+        sleep(2)
 
-        self.marker_polygon = None
         self.marker_pose = Pose()
         self.marker_id = None
         self.guide_pose = Pose()
+        
+        self.debug_info = dict()
 
-        self.avg_points = []
-        self.mask_points = []
-
-    def drawDebug(self, frame):
-        for x, y in self.mask_points:
+    def getDebugView(self):
+        """for x, y in self.mask_points:
             frame = cv2.circle(
                 frame, (int(x) * 2, int(y) * 2), 2, (255, 0, 255), 2)
         for x, y in self.avg_points:
             frame = cv2.circle(
-                frame, (int(x) * 2, int(y) * 2), 2, (0, 0, 255), 7)
+                frame, (int(x) * 2, int(y) * 2), 2, (0, 0, 255), 7)"""
+        
+        if "marker_polygon" in self.debug_info:
+            marker_polygon = self.debug_info["marker_polygon"]
+            frame = cv2.circle(
+                frame, (marker_polygon[0].x, marker_polygon[0].y), 2, (0, 255, 0), 5)
+            frame = cv2.circle(
+                frame, (marker_polygon[1].x, marker_polygon[1].y), 2, (0, 0, 255), 5)
+            frame = cv2.circle(
+                frame, (marker_polygon[2].x, marker_polygon[2].y), 2, (255, 0, 0), 5)
+            frame = cv2.circle(
+                frame, (marker_polygon[3].x, marker_polygon[3].y), 2, (255, 255, 0), 5)
 
-        if self.marker_polygon != None:
-            frame = cv2.circle(
-                frame, (self.marker_polygon[0].x, self.marker_polygon[0].y), 2, (0, 255, 0), 5)
-            frame = cv2.circle(
-                frame, (self.marker_polygon[1].x, self.marker_polygon[1].y), 2, (0, 0, 255), 5)
-            frame = cv2.circle(
-                frame, (self.marker_polygon[2].x, self.marker_polygon[2].y), 2, (255, 0, 0), 5)
-            frame = cv2.circle(
-                frame, (self.marker_polygon[3].x, self.marker_polygon[3].y), 2, (255, 255, 0), 5)
-
-        if self.marker_pose != None:
+        if "marker_pose" in self.debug_info:
+            pose = self.debug_info["marker_pose"]
             # font
             font = cv2.FONT_HERSHEY_SIMPLEX
-            # org
-            org = (int(self.marker_pose.x), int(self.marker_pose.y))
-            # fontScale
+            # origin
+            org = (int(pose.x), int(pose.y))
             fontScale = 3
-            # Red color in BGR
-            color = (0, 0, 255)
+            color = (0, 0, 255) # BGR
             # Using cv2.putText() method
-            frame = cv2.putText(frame, str(self.marker_id), org, font, fontScale,
+            frame = cv2.putText(frame, str(11), org, font, fontScale,
                                 color, 5, cv2.LINE_AA, False)
         return frame
 
     def getFrame(self):
-        frame = self.vs.read()
-        frame = imutils.resize(frame, width=400)
-        return frame
+        # Create the in-memory stream
+        stream = BytesIO()
+        self.camera.capture(stream, format='jpeg')
+        stream.seek(0)
+        high_res = Image.open(stream);
+        self.camera.capture(stream, resize=(320, 240))
+        stream.seek(0)
+        low_res = Image.open(stream);
+        
+        return low_res
+
 
     def update(self, debug = False):
-        # self.checkObstacleDetection()
+#          self.checkObstacleDetection()
         frame = self.getFrame()
         self.guide_pose = self.getGuideLinePosition(frame)
         self.marker_id, self.marker_pose = self.checkForMarker(frame)
@@ -115,22 +116,21 @@ class Detector():
         barcodes = decode(frame)
         if len(barcodes) > 0:
             marker = barcodes[0]
-            self.marker_polygon = marker.polygon
-            p1 = self.marker_polygon[0]  # Upper Right
-            p2 = self.marker_polygon[1]  # Lower Right
-            p3 = self.marker_polygon[2]  # Upper Right
-            p4 = self.marker_polygon[3]  # Lower Right
+            self.debug_info["marker_polygon"] = marker.polygon
+            p1 = marker.polygon[0]  # Upper Right
+            p2 = marker.polygon[1]  # Lower Right
+            p3 = marker.polygon[2]  # Upper Right
+            p4 = marker.polygon[3]  # Lower Right
             a = dist(p1.x, p1.y, p2.x, p2.y) + 1e-5
             b = dist(p2.x, p2.y, frame.shape[1], p2.y) + 1e-5
             c = dist(p1.x, p1.y, frame.shape[1], p2.y) + 1e-5
             a, b, c, _, _, C = sss(a, b, c)
             rot = C * (180/pi)
-            # Flip Quadrant
-            if p1.y > p2.y:  # If upside down
+            if p1.y > p2.y:  # Flip Quadrant if upside down
                 rot = 180 + (180 - rot)
             return int(marker.data), Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
         else:
-            self.marker_polygon = None
+            self.debug_info["marker_polygon"] = None
             return None, None
 
     def checkObstacleDetection(self):
@@ -169,6 +169,7 @@ if __name__ == '__main__':
     det = Detector(0)
 
     while True:  # loop over the frames from the video stream
-        cv2.imshow("d", det.update(True))
+        det.update()
+        cv2.imshow("d", det.drawDebug())
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
