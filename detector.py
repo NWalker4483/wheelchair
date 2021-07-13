@@ -20,6 +20,8 @@ class Detector():
         self.marker_pose = Pose()
         self.marker_id = None
         self.guide_pose = Pose()
+        
+        self.debug_info = dict()
 
         self.high_res_view = None
         self.low_res_view = None
