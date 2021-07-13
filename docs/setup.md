@@ -17,7 +17,6 @@ All python dependencies are managed by pipenv. Once you've downloaded the git re
 
 How to run the setup reliably you'll need to reserve an IP address for the base station you'll be using
 
- (Install MQTT](<https://www.arrow.com/en/research-and-events/articles/mqtt-tutorial>) on the raspberry pie so that it can host The transfer of data between the controller and the wheelchair
 
 ### Automation
 
@@ -32,3 +31,5 @@ https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-sta
 
 https://unix.stackexchange.com/questions/455261/how-to-set-environmental-variable-in-systemd-service
 
+
+Continue in the configurations

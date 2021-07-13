@@ -1,96 +1,61 @@
 #!/usr/bin/env python3
-import paho.mqtt.client as mqtt  
+import socket
 import pygame
 import utils.colors as colors
-import numpy as np
-import time
 
+def text_to_screen(screen, text, x, y, size = 50,
+            color = (200, 000, 000), font_type = 'data/fonts/orecrusherexpand.ttf'):
+    try:
+
+        text = str(text)
+        font = pygame.font.Font(font_type, size)
+        text = font.render(text, True, color)
+        screen.blit(text, (x, y))
+
+    except Exception as e:
+        print('Font Error, saw it coming')
+        raise(e)
 
 FPS = 30
 pygame.init()
-pygame.display.set_caption("Tracking System")
-
-
-import socket
+pygame.display.set_caption("Control System")
+screen = pygame.display.set_mode((500, 500))
+clock = pygame.time.Clock()
 
 UDP_IP = "192.168.0.2"
 UDP_PORT = 5005
-MESSAGE = b"Hello, World!"
 
-print("UDP target IP: %s" % UDP_IP)
-print("UDP target port: %s" % UDP_PORT)
-print("message: %s" % MESSAGE)
+sock = socket.socket(socket.AF_INET,  # Internet
+                     socket.SOCK_DGRAM)  # UDP
 
-sock = socket.socket(socket.AF_INET, # Internet
-                     socket.SOCK_DGRAM) # UDP
 def publish(topic, data):
-    sock.sendto(data.encode("utf-8"), (UDP_IP, UDP_PORT))
-
-screen = pygame.display.set_mode((500, 500))
-
-clock = pygame.time.Clock()
+    sock.sendto(topic.encode("utf-8")+b"/" +
+                data.encode("utf-8"), (UDP_IP, UDP_PORT))
 
 running = True
 
-qr_map_file = "qr_map.txt"
-
-# Reading the global poses of each QR code
-global_qr_poses = dict()
-markers = []
-
 control_update_topic = 'control_update'
+goal_update_topic = 'goal_update'
 
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
     pressed = pygame.key.get_pressed()
-    if pressed[pygame.K_q]:
-        publish(control_update_topic, "q")
-        print("q")
-        time.sleep(1/24)
-    elif pressed[pygame.K_w]:
-        publish(control_update_topic, "w")
-        print("w")
-        time.sleep(1/24)
-    elif pressed[pygame.K_e]:
-        publish(control_update_topic, "e")
-        print("e")
-        time.sleep(1/24)
-    elif pressed[pygame.K_a]:
-        publish(control_update_topic, "a")
-        print("a")
-        time.sleep(1/24)
-    elif pressed[pygame.K_s]:
-        publish(control_update_topic, "s")
-        print("s")
-        time.sleep(1/24)
-    elif pressed[pygame.K_d]:
-        publish(control_update_topic, "d")
-        print("d")
-        time.sleep(1/24)
-    elif pressed[pygame.K_z]:
-        publish(control_update_topic, "z")
-        print("z")
-        time.sleep(1/24)
-    elif pressed[pygame.K_x]:
-        publish(control_update_topic, "x")
-        print("x")
-        time.sleep(1/24)
-    elif pressed[pygame.K_c]:
-        publish(control_update_topic, "c")
-        print("c")
-        time.sleep(1/24)
-    
-      
-    # - draws (without updates) -
-
-    screen.fill(colors.WHITE)
-
-    pygame.display.flip()
-
+    pressed = [i for i in range(len(pressed)) if pressed[i]]
+    active = False
+    for key in pressed:
+        key_val = chr(key)
+        if key_val in "qweasdzxc":
+            publish(control_update_topic, key_val)
+            
+        elif (key_val in "1234567890"):
+            publish(goal_update_topic, key_val)
+            print(f"Goal Set to : {key_val}")
+    if not active:
+        publish('idle', "0")
+    # pygame.display.flip()
     # - constant game speed / FPS -
-
     clock.tick(FPS)
 
 # - end -

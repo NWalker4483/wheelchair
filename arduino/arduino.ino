@@ -1,104 +1,95 @@
 #include <Servo.h>
 
-#define TOP_MAX_OFFSET 10 // Left/Right
-#define BOT_MAX_OFFSET 10 // Forward/Reverse
+#define x_in A0
+#define y_in A5
+#define deadzone 25
 
-#define BOT_MIN 110
-#define BOT_ZERO 128
-#define BOT_MAX 130
+#define Y_MAX_OFFSET 70 // Forward/Reverse
+#define Y_ZERO 78
 
-#define TOP_MIN 60
-#define TOP_ZERO 68
-#define TOP_MAX 78
+#define X_MAX_OFFSET 70 // Left/Right
+#define X_ZERO 80
 
 #define TIMEOUT_SECONDS 2
+#define MANUAL2AUTO_DELAY 3
 
-Servo upper_servo; // create servo object to control a servo
-const int upper_servo_pin = 3;
-Servo lower_servo; // create servo object to control a servo
-const int lower_servo_pin = 5;
-// ! Temp
-/*
-Front of chair
- \  |  /
- <- * ->
- /  |  \
-*/
-int states[3][3][2] = {{{120,64},{110,68},{120,76}},
-                    {{128,64},{BOT_ZERO, TOP_ZERO},{128,74}},
-                    {{110,64},{134,68},{134,74}}};
+Servo x_servo; // create servo object to control a servo
+const int x_servo_pin = 3;
+Servo y_servo; // create servo object to control a servo
+const int y_servo_pin = 5;
 
 byte cmd_buffer[2];
- void setAngular(int val){
-  Serial.print("Angular: ");
-  val = map(val, -100, 100, TOP_ZERO - TOP_MAX_OFFSET, TOP_ZERO + TOP_MAX_OFFSET);
-  val = constrain(val, TOP_MIN, TOP_MAX);
-   upper_servo.write(val);
-   Serial.println(val);
-   delay(50);
-  }
- void setLinear(int val){
-  Serial.print("Linear: ");
-  val = map(val, -100, 100, BOT_ZERO - BOT_MAX_OFFSET, BOT_ZERO + BOT_MAX_OFFSET);
-  val = constrain(val, BOT_MIN, BOT_MAX);
-   lower_servo.write(val);
-   Serial.println(val);
-   delay(50);
-  }
+unsigned long last_cmd;
+unsigned long last_manual_cmd;
 
- void setState(int linear, int angular ){
-  int x, y;
-  x = 0; 
-  y = 0; 
-  if (abs(linear) <= 10){y = 1;}
-  else if (linear > 0){y = 0;}
-  else if (linear < 0){y = 2;}
-  if (abs(angular) <= 10){x = 1;}
-  else if (angular > 0){x = 2;}
-  else if (angular < 0){x = 0;}
-  Serial.print("Linear: ");
-  Serial.print(states[y][x][0]);
-  Serial.print(" ");
-   Serial.print("Angular: ");
-  Serial.println(states[y][x][1]);
-//  Serial.println(linear);
-//  Serial.println(angular);
-  lower_servo.write(states[y][x][0]);
-  upper_servo.write(states[y][x][1]);
-  }
+void setState(int x, int y) {
+  Serial.println(x);
+  last_cmd = millis();
+  x = constrain(x, -100, 100);
+  y = constrain(y, -100, 100);
+
+  float magnitude = sqrt((x * x) + (y * y));
+  magnitude = constrain(magnitude, 0, 100); // TBD
+
+  float x_norm, y_norm;
+  x_norm = abs(x) / 100.0;
+  y_norm = abs(y) / 100.0;
+
+  x_norm *= x > 0 ? 1.0 : -1.0;
+  y_norm *= y > 0 ? 1.0 : -1.0;
+
+  x = x_norm * magnitude;
+  y = y_norm * magnitude;
+
+  x = map(x, -100, 100, X_ZERO - X_MAX_OFFSET, X_ZERO + X_MAX_OFFSET);
+  y = map(y, -100, 100, Y_ZERO - Y_MAX_OFFSET, Y_ZERO + Y_MAX_OFFSET);
   
-void stop(){
-  upper_servo.write(TOP_ZERO);
-  lower_servo.write(BOT_ZERO);
+  x_servo.write(x);
+  y_servo.write(y);
+}
+
+void stop() {
+  x_servo.write(X_ZERO);
+  y_servo.write(Y_ZERO);
   delay(100);
 }
-  
+
 void setup() {
   Serial.begin(9600);
-  upper_servo.attach(upper_servo_pin);
-  lower_servo.attach(lower_servo_pin);
-  upper_servo.write(TOP_ZERO);
-  lower_servo.write(BOT_ZERO);
-  delay(100);
+  pinMode(x_in, INPUT);
+  pinMode(y_in, INPUT);
+  x_servo.attach(x_servo_pin);
+  y_servo.attach(y_servo_pin);
+  stop();
 }
 
-unsigned long last_cmd;
 void loop() {
-  if (Serial.available() >= 3) // Full Command is in buffer including start byte
-  {
-    byte strt = Serial.read();
-    if (strt == '#') // Check Start Byte
-    {
-      last_cmd = millis();
-      for (int i = 0; i < 2; i++) { // Read Command Array Bytes
-        cmd_buffer[i] = Serial.read();
-      }
-//      setAngular(map(cmd_buffer[0],0,127,-100,100));
-//      setLinear(map(cmd_buffer[1],0,127,-100,100));
-      setState(map(cmd_buffer[0],0,127,-100,100), map(cmd_buffer[1],0,127,-100,100));
-    }
-  }
-  if ((millis() - last_cmd) >= 1000 * TIMEOUT_SECONDS){
+  
+  int X, Y;
+  X = map(analogRead(x_in), 0, 1024, -100, 100);
+  Y = map(analogRead(y_in), 0, 1024, -100, 100);
+  if (abs(X) >= deadzone || abs(Y) >= deadzone) {
+    last_manual_cmd = millis();
+    setState(X,Y);
+  } else if (millis() - last_manual_cmd < MANUAL2AUTO_DELAY * 1000){
     stop();
-    }
+  }
+  
+   if (Serial.available() >= 3) // Full Command is in buffer including start
+   {
+     byte strt = Serial.read();
+     if (strt == '#') // Check Start Byte
+     {
+       for (int i = 0; i < 2; i++) { // Read Command Array Bytes
+         cmd_buffer[i] = Serial.read();
+       }
+       if (millis() - last_manual_cmd >= MANUAL2AUTO_DELAY * 100){
+       setState(map(cmd_buffer[0], 0, 127, -100, 100), map(cmd_buffer[1], 0,
+       127, -100, 100));}
+       } 
+     }
+   
+  if ((millis() - last_cmd) >= 1000 * TIMEOUT_SECONDS) {
+    stop();
+  }
 }

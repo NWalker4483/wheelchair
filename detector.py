@@ -10,17 +10,7 @@ import imutils
 from imutils.video import VideoStream, FileVideoStream
 
 
-def sss(d, e, f):
-    """ This function solves the triangle and returns (d,e,f,D,E,F) """
-    assert d + e > f and e + f > d and f + d > e
-    F = acos((d**2 + e**2 - f**2) / (2 * d * e))
-    E = acos((d**2 + f**2 - e**2) / (2 * d * f))
-    D = pi - F - E
-    return (d, e, f, D, E, F)
 
-
-def dist(x1, y1, x2, y2):
-    return ((x1-x2)**2 + (y1-y2)**2)**.5
 
 
 class Detector():
@@ -77,26 +67,19 @@ class Detector():
         frame = imutils.resize(frame, width=400)
         return frame
 
-    def update(self, debug=False):
+    def update(self, debug = False):
         # self.checkObstacleDetection()
         frame = self.getFrame()
-        # self.guide_pose = self.getGuideLinePosition(frame)
+        self.guide_pose = self.getGuideLinePosition(frame)
         self.marker_id, self.marker_pose = self.checkForMarker(frame)
-        debug = True 
-        if debug:
-            # return self.drawDebug(frame)
-            cv2.imshow("d", self.drawDebug(frame))
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                pass
-            return self.marker_id, self.marker_pose
-        else:
-            return self.marker_id, self.marker_pose
+        
+        return self.guide_pose, self.marker_id, self.marker_pose
 
     def getGuideLinePosition(self, img):
         img = imutils.resize(img, width=100)
         lower_hsv = np.array([40, 46, 77])
         upper_hsv = np.array([144, 210, 227])
-        img = cv2.medianBlur(img, 5)
+        # img = cv2.medianBlur(img, 5)
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
         pnts = []
@@ -113,10 +96,22 @@ class Detector():
                 pnts.append(np.mean(vals, axis=0))
             self.mask_points += vals
         self.avg_points += pnts
-        return None # Pose(*self.avg_points[0], rot=0)
+        print(self.avg_points)
+        return Pose(*self.avg_points[0], rot=0)
 
     def checkForMarker(self, frame):
         """find the two left side corners of a QR marker and return it to pose and ID"""
+        def sss(d, e, f):
+            """ This function solves the triangle and returns (d,e,f,D,E,F) """
+            assert d + e > f and e + f > d and f + d > e
+            F = acos((d**2 + e**2 - f**2) / (2 * d * e))
+            E = acos((d**2 + f**2 - e**2) / (2 * d * f))
+            D = pi - F - E
+            return (d, e, f, D, E, F)
+
+        def dist(x1, y1, x2, y2):
+            return ((x1-x2)**2 + (y1-y2)**2)**.5
+
         barcodes = decode(frame)
         if len(barcodes) > 0:
             marker = barcodes[0]
@@ -139,34 +134,35 @@ class Detector():
             return None, None
 
     def checkObstacleDetection(self):
-        dists = []
-        for trigger_pin, echo_pin in zip(self.trigger_pins, self.echo_pins):
-            # set Trigger to HIGH
-            GPIO.output(trigger_pin, True)
+        return [1000,1000,1000]
+        # dists = []
+        # for trigger_pin, echo_pin in zip(self.trigger_pins, self.echo_pins):
+        #     # set Trigger to HIGH
+        #     GPIO.output(trigger_pin, True)
 
-            # set Trigger after 0.01ms to LOW
-            time.sleep(0.00001)
-            GPIO.output(trigger_pin, False)
+        #     # set Trigger after 0.01ms to LOW
+        #     time.sleep(0.00001)
+        #     GPIO.output(trigger_pin, False)
 
-            StartTime = time.time()
-            StopTime = time.time()
+        #     StartTime = time.time()
+        #     StopTime = time.time()
 
-            # save StartTime
-            while GPIO.input(echo_pin) == 0:
-                StartTime = time.time()
+        #     # save StartTime
+        #     while GPIO.input(echo_pin) == 0:
+        #         StartTime = time.time()
 
-            # save time of arrival
-            while GPIO.input(echo_pin) == 1:
-                StopTime = time.time()
+        #     # save time of arrival
+        #     while GPIO.input(echo_pin) == 1:
+        #         StopTime = time.time()
 
-            # time difference between start and arrival
-            TimeElapsed = StopTime - StartTime
-            # multiply with the sonic speed (34300 cm/s)
-            # and divide by 2, because there and back
-            distance = (TimeElapsed * 34300) / 2
+        #     # time difference between start and arrival
+        #     TimeElapsed = StopTime - StartTime
+        #     # multiply with the sonic speed (34300 cm/s)
+        #     # and divide by 2, because there and back
+        #     distance = (TimeElapsed * 34300) / 2
 
-            dists.append(distance)
-        return dists
+        #     dists.append(distance)
+        # return dists
 
 
 if __name__ == '__main__':

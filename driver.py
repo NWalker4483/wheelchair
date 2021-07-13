@@ -61,18 +61,35 @@ class Driver():
         linear_cmd = int(translate(linear, -100, 100, 0, 127))
         angular_cmd = int(translate(angular, -100, 100, 0, 127))
 
-        values = [ord('#'),linear_cmd, angular_cmd]
-        print(values)
+        values = [ord('#'), linear_cmd, angular_cmd]
+        #print(values)
         self.ser.write(bytearray(values))
 
     def stop(self):
         self.send_cmd(0, 0)
 if __name__ == '__main__':
-    drive = Driver('/dev/ttyACM0')
+    import numpy as np
+    import math
+    import math
+
+    import numpy as np
+    def rotate(point, origin, degrees):
+        radians = np.deg2rad(degrees)
+        x,y = point
+        offset_x, offset_y = origin
+        adjusted_x = (x - offset_x)
+        adjusted_y = (y - offset_y)
+        cos_rad = np.cos(radians)
+        sin_rad = np.sin(radians)
+        qx = offset_x + cos_rad * adjusted_x + sin_rad * adjusted_y
+        qy = offset_y + -sin_rad * adjusted_x + cos_rad * adjusted_y
+        return qx, qy
+    drive = Driver('/dev/cu.usbmodem14401')
     try:
         while True:
-            linear, angular = [int(i) for i in input("{linear} {angular}\n").split()][:2]
-            drive.send_cmd(linear, angular)
-            time.sleep(1)
+            for angle in range(0, 360, 1):
+                x, y = rotate((0,100), (0, 0), angle)
+                drive.send_cmd(x, y)
+                time.sleep(1/60)
     finally:
         drive.stop()
