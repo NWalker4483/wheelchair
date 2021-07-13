@@ -20,29 +20,28 @@ class Detector():
         self.marker_pose = Pose()
         self.marker_id = None
         self.guide_pose = Pose()
+
+        self.high_res_view = None
+        self.low_res_view = None
         
         self.debug_info = dict()
 
     def getDebugView(self):
-        """for x, y in self.mask_points:
-            frame = cv2.circle(
-                frame, (int(x) * 2, int(y) * 2), 2, (255, 0, 255), 2)
-        for x, y in self.avg_points:
-            frame = cv2.circle(
-                frame, (int(x) * 2, int(y) * 2), 2, (0, 0, 255), 7)"""
-        
-        if "marker_polygon" in self.debug_info:
-            marker_polygon = self.debug_info["marker_polygon"]
-            frame = cv2.circle(
-                frame, (marker_polygon[0].x, marker_polygon[0].y), 2, (0, 255, 0), 5)
-            frame = cv2.circle(
-                frame, (marker_polygon[1].x, marker_polygon[1].y), 2, (0, 0, 255), 5)
-            frame = cv2.circle(
-                frame, (marker_polygon[2].x, marker_polygon[2].y), 2, (255, 0, 0), 5)
-            frame = cv2.circle(
-                frame, (marker_polygon[3].x, marker_polygon[3].y), 2, (255, 255, 0), 5)
+        frame = self.high_res_view
 
-        if "marker_pose" in self.debug_info:
+        if "marker_polygon" in self.debug_info:
+            polygon = self.debug_info["marker_polygon"]
+            # Draw Corners
+            frame = cv2.circle(
+                frame, (polygon[0].x, polygon[0].y), 2, (0, 255, 0), 5)
+            frame = cv2.circle(
+                frame, (polygon[1].x, polygon[1].y), 2, (0, 0, 255), 5)
+            frame = cv2.circle(
+                frame, (polygon[2].x, polygon[2].y), 2, (255, 0, 0), 5)
+            frame = cv2.circle(
+                frame, (polygon[3].x, polygon[3].y), 2, (255, 255, 0), 5)
+
+        if "marker_pose" in self.debug_info and "marker_id" in self.debug_info: #TODO Rotate Marker ID to match marker rotation
             pose = self.debug_info["marker_pose"]
             # font
             font = cv2.FONT_HERSHEY_SIMPLEX
@@ -51,37 +50,35 @@ class Detector():
             fontScale = 3
             color = (0, 0, 255) # BGR
             # Using cv2.putText() method
-            frame = cv2.putText(frame, str(11), org, font, fontScale,
+            frame = cv2.putText(frame, str(self.debug_info["marker_id"]), org, font, fontScale,
                                 color, 5, cv2.LINE_AA, False)
         return frame
 
-    def getFrame(self):
+    def update_views(self):
         # Create the in-memory stream
         stream = BytesIO()
         self.camera.capture(stream, format='jpeg')
         stream.seek(0)
-        high_res = Image.open(stream);
+        self.high_res_view = np.array(Image.open(stream));
         self.camera.capture(stream, resize=(320, 240))
         stream.seek(0)
-        low_res = Image.open(stream);
+        self.low_res_view = np.array(Image.open(stream));
         
-        return low_res
-
-
     def update(self, debug = False):
-#          self.checkObstacleDetection()
-        frame = self.getFrame()
-        self.guide_pose = self.getGuideLinePosition(frame)
-        self.marker_id, self.marker_pose = self.checkForMarker(frame)
+        self.update_views()
+        guide_pose = self.getGuideLinePosition()
+        marker_id, marker_pose = self.checkForMarker()
         
-        return self.guide_pose, self.marker_id, self.marker_pose
+        return guide_pose, marker_id, marker_pose
 
-    def getGuideLinePosition(self, img):
-        img = imutils.resize(img, width=100)
+    def getGuideLinePosition(self):
+        # Line Color Range
         lower_hsv = np.array([40, 46, 77])
         upper_hsv = np.array([144, 210, 227])
-        # img = cv2.medianBlur(img, 5)
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        frame = self.low_res_view
+        frame = cv2.medianBlur(frame, 5)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
         pnts = []
         self.avg_points = [(0,0)]
@@ -100,7 +97,7 @@ class Detector():
         print(self.avg_points)
         return Pose(*self.avg_points[0], rot=0)
 
-    def checkForMarker(self, frame):
+    def checkForMarker(self):
         """find the two left side corners of a QR marker and return it to pose and ID"""
         def sss(d, e, f):
             """ This function solves the triangle and returns (d,e,f,D,E,F) """
@@ -112,10 +109,11 @@ class Detector():
 
         def dist(x1, y1, x2, y2):
             return ((x1-x2)**2 + (y1-y2)**2)**.5
-
+        frame = self.low_res_view
         barcodes = decode(frame)
         if len(barcodes) > 0:
             marker = barcodes[0]
+            self.debug_info["marker_id"] = int(marker.data)
             self.debug_info["marker_polygon"] = marker.polygon
             p1 = marker.polygon[0]  # Upper Right
             p2 = marker.polygon[1]  # Lower Right
@@ -166,10 +164,9 @@ class Detector():
 
 
 if __name__ == '__main__':
-    det = Detector(0)
-
+    det = Detector()
     while True:  # loop over the frames from the video stream
         det.update()
-        cv2.imshow("d", det.drawDebug())
+        cv2.imshow("Debug", det.getDebugView())
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
