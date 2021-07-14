@@ -1,3 +1,4 @@
+from PIL.Image import RASTERIZE
 import serial
 from serial import Serial
 import time
@@ -33,11 +34,21 @@ class Driver():
 
         max_det_gap: 
         """
+        try:
+            if type(direction) == str:
+                direction = {"top": 0 , "bottom": 1, "left": 2, "right": 3}[direction]
+            else:
+                assert(type(direction) == int)
+                assert(0 <= direction <= 3)
+        except AssertionError as e:
+            raise(e)
+
         goal_rotations = {0: 270, 1: 90, 2: 180, 3: 0}
-        current_rotation = 45
+        current_rotation = 45 # * Could be any noncardinal direction
         gap = 0
         turn_val = 0
-        while abs(current_rotation - goal_rotations[direction]) > tolerance:
+        first_found = False
+        while (abs(current_rotation - goal_rotations[direction]) > tolerance) or not first_found:
             if gap >= max_det_gap:
                 self.stop()
                 # raise Exception("Tracking lost For too long")
@@ -45,14 +56,21 @@ class Driver():
             if seen == ID:
                 gap = 0
                 current_rotation = local_marker_pose.rot
+                first_found = True
                 print(current_rotation,  goal_rotations[direction])
             else:
                 gap += 1
-            if current_rotation > goal_rotations[direction]:
-                turn_val += 10
-            else: 
-                 turn_val -= 10
-            print(turn_val)
+            if first_found:
+                # TODO: Convert to PID or something smoother in general
+                # https://stackoverflow.com/questions/7428718/algorithm-or-formula-for-the-shortest-direction-of-travel-between-two-degrees-on
+                if ((goal_rotations[direction] - current_rotation + 360) % 360 < 180):
+                    if turn_val < 0: 
+                        turn_val = 0
+                    turn_val += 10 if turn_val < 100 else 0
+                else:
+                    if turn_val > 0: 
+                        turn_val = 0
+                    turn_val -= 10 if turn_val > -100 else 0
             self.send_cmd(0, turn_val)
 
     def attach(self, serial_port):
@@ -76,7 +94,6 @@ class Driver():
         self.send_cmd(0, 0)
 if __name__ == '__main__':
     import numpy as np
-    import math
     import math
 
     import numpy as np

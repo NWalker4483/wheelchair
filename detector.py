@@ -52,6 +52,13 @@ class Detector():
             frame = cv2.putText(frame, str(self.debug_info["marker_id"]), org, font, fontScale,
                                 color, 5, cv2.LINE_AA, False)
 
+        if "mask_points" in self.debug_info:
+            for x, y in self.debug_info["mask_points"]:
+                x, y = int((x/self.low_res[0]) * self.high_res[0]
+                           ), int((y/self.low_res[1]) * self.high_res[1])
+                frame = cv2.circle(
+                    frame, (int(x/2) , int(y/2) ), 2, (255, 0, 255), 2)
+
         if "line_points" in self.debug_info:
             for x, y in self.debug_info["line_points"]:
                 x, y = int((x/self.low_res[1]) * self.high_res[1]
@@ -61,12 +68,6 @@ class Detector():
                 frame = cv2.circle(
                     frame, (int(x), int(y)), 2, (0, 0, 255), 7)
 
-        if "mask_points" in self.debug_info:
-            for x, y in self.debug_info["mask_points"]:
-                x, y = int((x/self.low_res[0]) * self.high_res[0]
-                           ), int((y/self.low_res[1]) * self.high_res[1])
-                frame = cv2.circle(
-                    frame, (int(x/2) , int(y/2) ), 2, (255, 0, 255), 2)
 
         return frame
 
@@ -111,13 +112,16 @@ class Detector():
                 pnts.append(np.mean(vals, axis=0))
             mask_points += vals
         avg_points += pnts
+
+        mask_points = np.array(mask_points)
+        avg_points = np.array(avg_points)
+
         self.debug_info["mask_points"] = mask_points
         self.debug_info["line_points"] = avg_points
-        # x = np.array([1, 3, 5, 7])
-        # y = np.array([ 6, 3, 9, 5 ])
-        # m, b = np.polyfit(x, y, 1)
-
-        return Pose(*avg_points[0], rot=0)
+ 
+        m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1) # y, x
+        print(m,b)
+        return Pose(0,0, rot=0)
 
     def checkForMarker(self):
         """find the two left side corners of a QR marker and return it to pose and ID"""
