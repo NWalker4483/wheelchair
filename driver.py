@@ -27,7 +27,12 @@ class Driver():
         self.linear = 0 # Upper Servo
         self.angular = 0  # Lower Servo
         self.rotation_speed = 30 # 0:100%
-    
+    def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):
+        # TODO Maybe add filtering
+        if b > 0:
+            self.send_cmd(drive_speed, self.angular + 2)
+        else:
+            self.send_cmd(drive_speed, self.angular - 2)
     def face(self, direction, detector, ID, tolerance = 3, max_det_gap = 200000):
         """
         direction {0: Top, 1: Bottom, 2: Left, 3: Right}
