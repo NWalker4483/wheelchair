@@ -26,6 +26,9 @@ class Detector():
         sleep(2)  # Warm Up camera
     def getDebugView(self):
         frame = self.high_res_view
+        if type(frame) == type(None):
+            import numpy as np
+            return np.zeros((10,10))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         if "marker_polygon" in self.debug_info:
@@ -39,15 +42,17 @@ class Detector():
                 frame, (polygon[2].x, polygon[2].y), 12, (255, 0, 0), 5)
             frame = cv2.circle(
                 frame, (polygon[3].x, polygon[3].y), 12, (255, 255, 0), 5)
+            # cv2.line()
 
         # TODO Rotate Marker ID to match marker rotation
-        if "marker_pose" in self.debug_info and "marker_id" in self.debug_info:
+        if all([i in self.debug_info for i in ["marker_pose","marker_id"]]):
+
             pose = self.debug_info["marker_pose"]
             # font
             font = cv2.FONT_HERSHEY_SIMPLEX
             # origin
             org = (int(pose.x), int(pose.y))
-            fontScale = 13
+            fontScale = 5
             color = (0, 0, 255)  # BGR
             # Using cv2.putText() method
             frame = cv2.putText(frame, str(self.debug_info["marker_id"]), org, font, fontScale,
@@ -168,7 +173,10 @@ class Detector():
             rot = C * (180/pi)
             if p1.y > p2.y:  # Flip Quadrant if upside down
                 rot = 180 + (180 - rot)
-            return int(marker.data), Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
+                
+                
+            self.debug_info["marker_pose"] = Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
+            return int(marker.data), self.debug_info["marker_pose"]
         else:
             if "marker_polygon" in self.debug_info:
                 del self.debug_info["marker_polygon"]
