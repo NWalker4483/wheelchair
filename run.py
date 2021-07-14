@@ -7,11 +7,29 @@ import socket
 from driver import Driver
 import cv2
 from detector import Detector
+from threading import Thread
+class UDPStream(Thread):
+    def __init__(self, socket):
+        Thread.__init__(self)
+        self.daemon =True
+        self.last_data = "idle/0"
+        self.data = {"last": "idle/0","cap_time": time.time()}
+        self.sock = socket
+        self.alive = True
+        self.start()
+    def run(self):
+        while self.alive:
+            raw_data ,_ = self.sock.recvfrom(1024)
+            self.data["last"] = raw_data.decode()
+            self.data["cap_time"] = time.time()
+    def close(self):
+        self.alive = False
+        self.sock.close()
 
 driver = Driver('/dev/ttyACM0')
 detector = Detector()
 
-control_update_topic = 'control_update'
+control_update_topic = 'cu'
 goal_update_topic = 'goal_update'
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -19,6 +37,8 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 port = 5005
 host = "192.168.0.2"  
 sock.bind((host, port))
+sock = UDPStream(sock)
+#  sock.start()
 
 map = QrMap()
 
@@ -26,13 +46,18 @@ current_goal = -1
 current_path = []
 current_step = -1 
 lost = True
+last_sent = ""
 
 try:
     while True:
-        
-        raw_data = sock.recv(1024) 
-        topic, data = raw_data.decode().split('/')
+        raw_data = sock.data["last"] # recv(4096)
+        if time.time() - sock.data["cap_time"] > .5:
+            raw_data = "idle/0"
+        print(raw_data)
+        time.sleep(1/20)
+        topic, data = raw_data.split('/')
         if topic == control_update_topic:
+            last_sent = data
             if (data == 'q'):
                 driver.send_cmd(100, -100)
             elif (data == 'w'):
@@ -54,6 +79,8 @@ try:
             elif len(data.split(",")) == 2:
                 lin, ang = [int(i) for i in data.split(",")]
                 driver.send_cmd(lin, ang)
+            else:
+                print(data)
                 
         elif topic == goal_update_topic:
             if current_goal != int(data):
@@ -68,25 +95,30 @@ try:
                 try:
                     current_path = map.get_plan(current_path[current_step], current_goal)
                     current_step = 0
-                    last_stop = current_path[0]
-                except:
+                except Exception as e:
                     print("Invalid Goal Set")
-            if current_step == len(path) or marker_id == current_goal:
-                current_path = []
-                continue
-                    
+                    raise(e)
+            
+        # continue   
         if (len(current_path) > 0) or lost:# THis Fucks or recv from
             local_line_form, marker_id, local_marker_pose = detector.update()
-            continue
+            
             if marker_id != None: # Marker in frame
-                if marker_id == current_path[current_step]: # We're on the next step
-                    direction = map.get_connection_direction(path[current_path], path[current_path + 1]) # Face Direction 
-                    driver.face(direction, detector, marker_id)
-                    current_step += 1
-                elif (lost):
+                if (lost):
                       # Setup the other loop to calculate the set path
                       current_path = [marker_id]
                       current_step = 0
+                elif marker_id == current_path[current_step]: # We're on the next step
+                    current_step += 1
+                    if current_step == len(current_path) or marker_id == current_goal:
+                        current_path = []
+                        current_goal = -1
+                        current_step = -1
+                        print("Goal Reached")
+                        continue
+                    direction = map.get_connection_direction(path[current_path], path[current_path + 1]) # Face Direction 
+                    driver.face(direction, detector, marker_id)
+                    
                       
                 elif current_step == 0: # We still havent found the first marker
                     # An ID other than the intended starting ID was seen first
