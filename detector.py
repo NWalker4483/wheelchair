@@ -14,19 +14,20 @@ class Detector():
     def __init__(self, filename=None):
 
         self.camera = PiCamera()
-        self.camera.start_preview()
-        sleep(2)
-
-        self.marker_pose = Pose()
-        self.marker_id = None
-        self.guide_pose = Pose()
+       
         
         self.debug_info = dict()
-
+        
+        self.high_res = (512, 384)
+        self.low_res = (320, 240)
+        
         self.high_res_view = None
         self.low_res_view = None
         
         self.debug_info = dict()
+        self.camera.resolution = self.high_res
+        #self.camera.start_preview()(320, 240)
+        sleep(2)
 
     def getDebugView(self):
         frame = self.high_res_view
@@ -54,6 +55,8 @@ class Detector():
             # Using cv2.putText() method
             frame = cv2.putText(frame, str(self.debug_info["marker_id"]), org, font, fontScale,
                                 color, 5, cv2.LINE_AA, False)
+        if "line_points" in self.debug_info:
+            frame
         return frame
 
     def update_views(self):
@@ -62,13 +65,13 @@ class Detector():
         self.camera.capture(stream, format='jpeg')
         stream.seek(0)
         self.high_res_view = np.array(Image.open(stream));
-        self.camera.capture(stream, resize=(320, 240))
+        self.camera.capture(stream, resize=self.low_res, format='jpeg')
         stream.seek(0)
         self.low_res_view = np.array(Image.open(stream));
         
     def update(self, debug = False):
         self.update_views()
-        guide_pose = self.getGuideLinePosition()
+        guide_pose = None # self.getGuideLinePosition()
         marker_id, marker_pose = self.checkForMarker()
         
         return guide_pose, marker_id, marker_pose
@@ -130,7 +133,8 @@ class Detector():
                 rot = 180 + (180 - rot)
             return int(marker.data), Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
         else:
-            self.debug_info["marker_polygon"] = None
+            if "marker_polygon" in self.debug_info:
+                del self.debug_info["marker_polygon"]
             return None, None
 
     def checkObstacleDetection(self):
