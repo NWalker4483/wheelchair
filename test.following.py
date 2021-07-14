@@ -16,6 +16,7 @@ while True:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
     if first_seen != -1:
-        driver.adjust_to_line(*line_form)
+        driver.adjust_to_line(*line_form,drive_speed=90)
+        print("Following Line...")
     else:
         print("Waitng to see start marker...")

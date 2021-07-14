@@ -139,8 +139,10 @@ class Detector():
         self.debug_info["mask_points"] = mask_points
         self.debug_info["line_points"] = avg_points
         # avg_points = mask_points
-        
-        m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1) 
+        if len(avg_points) > 3:
+            m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
+        else:
+            m, b = 0, 0
         self.debug_info["line_form"] = (m, b)
         return (m, b)
 
@@ -180,6 +182,8 @@ class Detector():
         else:
             if "marker_polygon" in self.debug_info:
                 del self.debug_info["marker_polygon"]
+                del self.debug_info["marker_pose"]
+                del self.debug_info["marker_id"]
             return None, None
 
 
