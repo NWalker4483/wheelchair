@@ -51,6 +51,9 @@ try:
                 driver.send_cmd(-100, 0)
             elif (data == 'c'):
                 driver.send_cmd(-100, 100)
+            elif len(data.split(",")) == 2:
+                lin, ang = [int(i) for i in data.split(",")]
+                driver.send_cmd(lin, ang)
         elif topic == goal_update_topic:
             if current_goal != int(data):
                 current_goal = int(data)
