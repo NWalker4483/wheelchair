@@ -21,12 +21,10 @@ sock.bind((host, port))
 
 map = QrMap()
 
-start, stop = 1, 3
-current_goal = 3
+current_goal = -1
 current_path = []
+current_step = -1 
 path_complete = True
-last_step = start
-current_step = 0 
 
 try:
     while True:
@@ -59,34 +57,36 @@ try:
             if current_goal != int(data):
                 current_goal = int(data)
                 print(f"Current Goal: {current_goal}")
-        if not path_complete and len(current_path) > 0:
-            local_line_pose, marker_id, local_marker_pose = detector.update()
-
+        if len(current_path) > 0:
             if current_goal != current_path[-1]:
                 try:
                     current_path = map.get_plan(start, current_goal)
+                    current_step = 0
                     last_stop = current_path[0]
                 except:
                     print(2)
-                finally:
-                    pass
-            if current_step == len(path):
-                path_complete = True
+            if current_step == len(path) or marker_id == current_goal:
+                current_path = []
                 continue
-            elif (marker_id == current_path[0]):
+                    
+        if len(current_path) > 0:
+            local_line_form, marker_id, local_marker_pose = detector.update()
+
+            if (marker_id == current_path[0]):
                 pass
             else:
                 if marker_id != None: # Marker in frame
-                    if marker_id not in [current_path[current_step - 1 if current_step > 0 else 0], current_path[current_step], current_path[current_step + 1 if current_step < len(current_path) else 0]]: # We got lost
-                        print("How'd I get here")
-                    elif marker_id == current_path[current_step]: # We're on the next step
+                    if marker_id == current_path[current_step]: # We're on the next step
                         direction = map.get_connection_direction(path[current_path], path[current_path + 1]) # Face Direction 
                         driver.face(direction, detector, marker_id)
                         current_step += 1
-                    elif last_stop == path[current_step]: # We still havent found the first marker
+                    elif current_step == 0: # We still havent found the first marker
                         continue    
-                else:# detector
-                    follow_line(detector, driver)
+                    else:
+                        if local_line_form[0] > 0:
+                            driver.send_cmd(70, driver.angular + 2)
+                        else:
+                            driver.send_cmd(70, driver.angular - 2)
 finally:
     sock.close()
     driver.stop()
