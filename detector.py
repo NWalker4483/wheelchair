@@ -10,24 +10,21 @@ from time import sleep
 from picamera import PiCamera
 from PIL import Image
 
+
 class Detector():
     def __init__(self, filename=None):
 
-        self.camera = PiCamera()
-       
-        
-        self.debug_info = dict()
-        
         self.high_res = (512, 384)
         self.low_res = (320, 240)
-        
+
         self.high_res_view = None
         self.low_res_view = None
-        
+
         self.debug_info = dict()
+
+        self.camera = PiCamera()
         self.camera.resolution = self.high_res
-        #self.camera.start_preview()(320, 240)
-        sleep(2)
+        sleep(2)  # Warm Up camera
 
     def getDebugView(self):
         frame = self.high_res_view
@@ -44,62 +41,80 @@ class Detector():
             frame = cv2.circle(
                 frame, (polygon[3].x, polygon[3].y), 2, (255, 255, 0), 5)
 
-        if "marker_pose" in self.debug_info and "marker_id" in self.debug_info: #TODO Rotate Marker ID to match marker rotation
+        # TODO Rotate Marker ID to match marker rotation
+        if "marker_pose" in self.debug_info and "marker_id" in self.debug_info:
             pose = self.debug_info["marker_pose"]
             # font
             font = cv2.FONT_HERSHEY_SIMPLEX
             # origin
             org = (int(pose.x), int(pose.y))
             fontScale = 3
-            color = (0, 0, 255) # BGR
+            color = (0, 0, 255)  # BGR
             # Using cv2.putText() method
             frame = cv2.putText(frame, str(self.debug_info["marker_id"]), org, font, fontScale,
                                 color, 5, cv2.LINE_AA, False)
+
         if "line_points" in self.debug_info:
-            frame
+            for x, y in self.avg_points:
+                x, y = int((x/self.low_res[0]) * self.high_res[0]
+                           ), int((y/self.low_res[1]) * self.high_res[1])
+                frame = cv2.circle(
+                    frame, (x, y), 2, (0, 0, 255), 7)
+
+        if "lineres_points" in self.debug_info:
+            for x, y in self.mask_points:
+                frame = cv2.circle(
+                    frame, (int(x) * 2, int(y) * 2), 2, (255, 0, 255), 2)
+
         return frame
 
     def update_views(self):
         # Create the in-memory stream
         stream = BytesIO()
-        self.camera.capture(stream, format='jpeg')
+        self.camera.capture(stream, resize=self.high_res, format='jpeg')
         stream.seek(0)
-        self.high_res_view = np.array(Image.open(stream));
+        self.high_res_view = np.array(Image.open(stream))
+
         self.camera.capture(stream, resize=self.low_res, format='jpeg')
         stream.seek(0)
-        self.low_res_view = np.array(Image.open(stream));
-        
-    def update(self, debug = False):
+        self.low_res_view = np.array(Image.open(stream))
+
+    def update(self):
         self.update_views()
-        guide_pose = None # self.getGuideLinePosition()
+        guide_pose = self.getGuideLinePosition()
         marker_id, marker_pose = self.checkForMarker()
-        
+
         return guide_pose, marker_id, marker_pose
 
     def getGuideLinePosition(self):
         # Line Color Range
         lower_hsv = np.array([40, 46, 77])
         upper_hsv = np.array([144, 210, 227])
-        
+
         frame = self.low_res_view
+
         frame = cv2.medianBlur(frame, 5)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
         pnts = []
-        self.avg_points = [(0,0)]
+        self.avg_points = [(0, 0)]
         self.mask_points = []
         # Separate the image into strips of height 20
         for y in range(0, mask.shape[0], 20):
             vals = []
             for i in range(0, 15, 5):  # Sample each of the strips four times
                 for x in range(0, mask.shape[1], 5):
-                    if mask[y ][x] > 125:
+                    if mask[y][x] > 125:
                         vals.append([x, y + i])
             if len(vals) > 0:
                 pnts.append(np.mean(vals, axis=0))
             self.mask_points += vals
         self.avg_points += pnts
-        print(self.avg_points)
+        self.debug_info["line_points"] = self.avg_points
+        # x = np.array([1, 3, 5, 7])
+        # y = np.array([ 6, 3, 9, 5 ])
+        # m, b = np.polyfit(x, y, 1)
+
         return Pose(*self.avg_points[0], rot=0)
 
     def checkForMarker(self):
@@ -136,37 +151,6 @@ class Detector():
             if "marker_polygon" in self.debug_info:
                 del self.debug_info["marker_polygon"]
             return None, None
-
-    def checkObstacleDetection(self):
-        return [1000,1000,1000]
-        # dists = []
-        # for trigger_pin, echo_pin in zip(self.trigger_pins, self.echo_pins):
-        #     # set Trigger to HIGH
-        #     GPIO.output(trigger_pin, True)
-
-        #     # set Trigger after 0.01ms to LOW
-        #     time.sleep(0.00001)
-        #     GPIO.output(trigger_pin, False)
-
-        #     StartTime = time.time()
-        #     StopTime = time.time()
-
-        #     # save StartTime
-        #     while GPIO.input(echo_pin) == 0:
-        #         StartTime = time.time()
-
-        #     # save time of arrival
-        #     while GPIO.input(echo_pin) == 1:
-        #         StopTime = time.time()
-
-        #     # time difference between start and arrival
-        #     TimeElapsed = StopTime - StartTime
-        #     # multiply with the sonic speed (34300 cm/s)
-        #     # and divide by 2, because there and back
-        #     distance = (TimeElapsed * 34300) / 2
-
-        #     dists.append(distance)
-        # return dists
 
 
 if __name__ == '__main__':
