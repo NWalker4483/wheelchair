@@ -48,7 +48,8 @@ while running:
         lvalue *= -100;
         avalue = joystick.get_axis(0) # Flipped Angular
         avalue *= 100;
-        publish(control_update_topic, f"{lvalue}, {avalue}")
+
+        publish(control_update_topic, f"{int(lvalue)}, {int(avalue)}")
 
     pressed = pygame.key.get_pressed()
     pressed = [i for i in range(len(pressed)) if pressed[i]]
