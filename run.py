@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-from sys import flags
-from threading import current_thread
 from driver import Driver
 from detector import Detector
 from map_tools import QrMap 
@@ -26,16 +24,14 @@ map = QrMap()
 start, stop = 1, 3
 current_goal = 3
 current_path = []
-path_complete = False
+path_complete = True
 last_step = start
-path = map.get_plan(start, stop)
 current_step = 0 
-last_stop = path[0]
 
 try:
     while True:
-        raw_data = sock.recvfrom(1024)
-        topic, data = raw_data.split('/')
+        raw_data = sock.recv(1024) 
+        topic, data = raw_data.decode().split('/')
         if topic == control_update_topic:
             if (data == 'q'):
                 driver.send_cmd(100, -100)
@@ -58,16 +54,18 @@ try:
         elif topic == goal_update_topic:
             if current_goal != int(data):
                 current_goal = int(data)
+                print(f"Current Goal: {current_goal}")
         if not path_complete and len(current_path) > 0:
             local_line_pose, marker_id, local_marker_pose = detector.update()
 
             if current_goal != current_path[-1]:
                 try:
                     current_path = map.get_plan(start, current_goal)
+                    last_stop = current_path[0]
                 except:
                     print(2)
                 finally:
-                    continue
+                    pass
             if current_step == len(path):
                 path_complete = True
                 continue

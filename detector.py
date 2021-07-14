@@ -22,10 +22,8 @@ class Detector():
 
         self.debug_info = dict()
 
-        self.camera = PiCamera()
-        self.camera.resolution = self.high_res
+        self.camera = PiCamera(sensor_mode = 5)
         sleep(2)  # Warm Up camera
-
     def getDebugView(self):
         frame = self.high_res_view
 
@@ -55,29 +53,32 @@ class Detector():
                                 color, 5, cv2.LINE_AA, False)
 
         if "line_points" in self.debug_info:
-            for x, y in self.avg_points:
+            for x, y in self.debug_info["line_points"]:
+                x, y = int((x/self.low_res[1]) * self.high_res[1]
+                           ), int((y/self.low_res[0]) * self.high_res[0])
+                x/=2
+                y/=2
+                frame = cv2.circle(
+                    frame, (int(x), int(y)), 2, (0, 0, 255), 7)
+
+        if "mask_points" in self.debug_info:
+            for x, y in self.debug_info["mask_points"]:
                 x, y = int((x/self.low_res[0]) * self.high_res[0]
                            ), int((y/self.low_res[1]) * self.high_res[1])
                 frame = cv2.circle(
-                    frame, (x, y), 2, (0, 0, 255), 7)
-
-        if "lineres_points" in self.debug_info:
-            for x, y in self.mask_points:
-                frame = cv2.circle(
-                    frame, (int(x) * 2, int(y) * 2), 2, (255, 0, 255), 2)
+                    frame, (int(x/2) , int(y/2) ), 2, (255, 0, 255), 2)
 
         return frame
 
     def update_views(self):
-        # Create the in-memory stream
-        stream = BytesIO()
-        self.camera.capture(stream, resize=self.high_res, format='jpeg')
-        stream.seek(0)
-        self.high_res_view = np.array(Image.open(stream))
+        self.stream = BytesIO()
+        self.camera.capture(self.stream, resize=self.high_res, format='jpeg', use_video_port=True)
+        self.stream.seek(0)
+        self.high_res_view = np.array(Image.open(self.stream))
 
-        self.camera.capture(stream, resize=self.low_res, format='jpeg')
-        stream.seek(0)
-        self.low_res_view = np.array(Image.open(stream))
+        self.camera.capture(self.stream, resize=self.low_res, format='jpeg', use_video_port=True)
+        self.stream.seek(0)
+        self.low_res_view = np.array(Image.open(self.stream))
 
     def update(self):
         self.update_views()
@@ -97,8 +98,8 @@ class Detector():
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
         pnts = []
-        self.avg_points = [(0, 0)]
-        self.mask_points = []
+        avg_points = [(0, 0)]
+        mask_points = []
         # Separate the image into strips of height 20
         for y in range(0, mask.shape[0], 20):
             vals = []
@@ -108,14 +109,15 @@ class Detector():
                         vals.append([x, y + i])
             if len(vals) > 0:
                 pnts.append(np.mean(vals, axis=0))
-            self.mask_points += vals
-        self.avg_points += pnts
-        self.debug_info["line_points"] = self.avg_points
+            mask_points += vals
+        avg_points += pnts
+        self.debug_info["mask_points"] = mask_points
+        self.debug_info["line_points"] = avg_points
         # x = np.array([1, 3, 5, 7])
         # y = np.array([ 6, 3, 9, 5 ])
         # m, b = np.polyfit(x, y, 1)
 
-        return Pose(*self.avg_points[0], rot=0)
+        return Pose(*avg_points[0], rot=0)
 
     def checkForMarker(self):
         """find the two left side corners of a QR marker and return it to pose and ID"""
