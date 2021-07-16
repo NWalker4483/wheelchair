@@ -23,13 +23,13 @@ class QrMap():
         plan = []
         
         while len(unvisited) > 0:
-            curr = min(unvisited, key = lambda x : best[x] if x in best else 10e15)
+            curr = min(unvisited, key = lambda x : cost[x] if x in cost else 10e15)
             if curr == stop:
                 while curr != start:
                     plan.append(curr)
                     curr = best[curr]
                 plan.append(start)
-                break
+                
             for neighbour in self.__connections[curr]:
                 distance = 1
                 if neighbour > 0:

@@ -61,7 +61,7 @@ while running:
             active = True
             
         elif (key_val in "1234567890"):
-            publish(goal_update_topic, key_val)
+            publish("exit", key_val)
             print(f"Goal Set to : {key_val}")
             active = True
     if not active:
