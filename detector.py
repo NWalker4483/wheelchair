@@ -11,7 +11,6 @@ from time import sleep
 from picamera import PiCamera
 from picamera.array import PiRGBArray
 from PIL import Image
-# import the necessary packages
 from imutils.video import WebcamVideoStream
 from imutils.video import FPS
 import argparse
@@ -21,7 +20,7 @@ class Detector():
     def __init__(self, filename=None):
         self.high_res = (640, 480)
         self.low_res = (640, 480)
-
+        
         self.high_res_view = None
         self.low_res_view = None
 
@@ -95,23 +94,26 @@ class Detector():
 
     def update_views(self):
         frame = self.camera_stream.read()
-        frame = imutils.resize(frame, width=325)
+        frame = imutils.resize(frame, width=400)
         self.low_res_view = frame
         self.high_res_view = frame
         # self.first = True
     def update(self):
-        
         self.update_views()
         marker_id, marker_pose = self.checkForMarker()
-  
-        guide_pose = self.getGuideLinePosition()
-
+        
+        if type(marker_pose) != type(None):
+            #TODO: 
+            guide_pose = (0, marker_pose.x)
+            self.debug_info["line_form"] = (0, marker_pose.x)
+        else:
+            guide_pose = self.getGuideLinePosition()
         return guide_pose, marker_id, marker_pose
 
     def getGuideLinePosition(self, clip_at = None):
         # Line Color Range
-        lower_hsv = np.array([40, 46, 77])
-        upper_hsv = np.array([144, 210, 227])
+        lower_hsv = np.array([27, 103, 103])
+        upper_hsv = np.array([120, 202, 220])
 
         frame = self.low_res_view
 

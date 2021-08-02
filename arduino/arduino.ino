@@ -4,26 +4,25 @@
 #define y_in A5
 #define deadzone 25
 
-#define Y_MAX_OFFSET 70 // Forward/Reverse
-#define Y_ZERO 78
+#define Y_MAX_OFFSET 70 // Left/Right
+#define Y_ZERO 90
 
-#define X_MAX_OFFSET 70 // Left/Right
-#define X_ZERO 80
+#define X_MAX_OFFSET 90  // Forward/Reverse
+#define X_ZERO 90
 
 #define TIMEOUT_SECONDS 2
 #define MANUAL2AUTO_DELAY 3
 
 Servo x_servo; // create servo object to control a servo
-const int x_servo_pin = 3;
+const int x_servo_pin = 5;
 Servo y_servo; // create servo object to control a servo
-const int y_servo_pin = 5;
+const int y_servo_pin = 3;
 
 byte cmd_buffer[2];
 unsigned long last_cmd;
 unsigned long last_manual_cmd;
 
 void setState(int x, int y) {
-  Serial.println(x);
   last_cmd = millis();
   x = constrain(x, -100, 100);
   y = constrain(y, -100, 100);
@@ -69,8 +68,8 @@ void loop() {
   X = map(analogRead(x_in), 0, 1024, -100, 100);
   Y = map(analogRead(y_in), 0, 1024, -100, 100);
   if (abs(X) >= deadzone || abs(Y) >= deadzone) {
-    last_manual_cmd = millis();
-    setState(X,Y);
+    // last_manual_cmd = millis();
+    // setState(X,Y);
   } else if (millis() - last_manual_cmd < MANUAL2AUTO_DELAY * 1000){
     stop();
   }

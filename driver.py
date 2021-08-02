@@ -29,10 +29,13 @@ class Driver():
         self.rotation_speed = 30 # 0:100%
     def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):
         # TODO Maybe add filtering
+        if (m < 0 and self.angular > 0) or (m > 0 and  self.angular < 0):
+            self.angular = 0
         if m < 0:
             self.send_cmd(drive_speed, self.angular + 2)
         else:
             self.send_cmd(drive_speed, self.angular - 2)
+        
     def face(self, direction, detector, ID, tolerance = 3, max_det_gap = 200):
         """
         direction {0: Top, 1: Bottom, 2: Left, 3: Right}
@@ -79,7 +82,7 @@ class Driver():
             self.send_cmd(0, turn_val)
 
     def attach(self, serial_port):
-        self.ser = Serial(serial_port, 115200)
+        self.ser = Serial(serial_port, 9600)
 
     def send_cmd(self, linear, angular):
         linear = linear if linear >= -100 else -100

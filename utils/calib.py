@@ -7,7 +7,7 @@ import time
 
 # initialize the video stream, sensors, etc
 print("[INFO] starting video stream...")
-vs = FileVideoStream("data/green.mp4").start()
+vs = VideoStream(0).start()
 img = vs.read()
 img = imutils.resize(img, width=500)
 
