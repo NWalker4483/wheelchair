@@ -11,17 +11,22 @@ from threading import Thread
 class UDPStream(Thread):
     def __init__(self, socket):
         Thread.__init__(self)
-        self.daemon =True
-        self.last_data = "idle/0"
-        self.data = {"last": "idle/0","cap_time": time.time()}
+        self.daemon = True
+        self.data = {"last": "i/0","cap_time": time.time()}
+        self.__raw_data = ''
         self.sock = socket
         self.alive = True
-        self.start()
+        self.delimiter = ';'
     def run(self):
         while self.alive:
-            raw_data ,_ = self.sock.recvfrom(1024)
-            self.data["last"] = raw_data.decode()
-            self.data["cap_time"] = time.time()
+            recv_data = self.sock.recv(4)
+            if not recv_data:
+                continue
+            if recv_data[:-1] == self.delimiter:
+                self.data["last"] = self.__raw_data
+            else:
+                self.data["last"] += recv_data.decode()
+                self.data["cap_time"] = time.time()
     def close(self):
         self.alive = False
         self.sock.close()
@@ -29,17 +34,17 @@ class UDPStream(Thread):
 driver = Driver('/dev/ttyACM0')
 detector = Detector()
 
-control_update_topic = 'cu'
-goal_update_topic = 'goal_update'
+control_update_topic = 'c'
+goal_update_topic = 'g'
+idle_topic = 'i'
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
+# sock.setblocking(0)
 port = 5005
 host = "192.168.0.2"  
 sock.bind((host, port))
 sock = UDPStream(sock)
-#  sock.start()
-
+sock.start()
 map = QrMap()
 
 current_goal = -1
@@ -47,14 +52,18 @@ current_path = []
 current_step = -1 
 lost = True
 last_sent = ""
-
+running = True
+s=time.time()
 try:
-    while True:
-        raw_data = sock.data["last"] # recv(4096)
+    while running:
+        print("FPS: ", 1.0 / (time.time() - s))
+        s = time.time()
+        
         if time.time() - sock.data["cap_time"] > .5:
-            raw_data = "idle/0"
+            raw_data = idle_topic + "/0"
+        else:
+            raw_data = sock.data["last"]
         print(raw_data)
-        time.sleep(1/20)
         topic, data = raw_data.split('/')
         if topic == control_update_topic:
             last_sent = data
@@ -89,6 +98,8 @@ try:
                 if len(current_path) == 0: 
                       lost = True
                       current_step = -1
+        elif topic == "e":
+            running = False
         
         if len(current_path) > 0:
             if current_goal != current_path[-1]:
@@ -99,7 +110,6 @@ try:
                     print("Invalid Goal Set")
                     raise(e)
             
-        # continue   
         if (len(current_path) > 0) or lost:# THis Fucks or recv from
             local_line_form, marker_id, local_marker_pose = detector.update()
             
@@ -130,7 +140,7 @@ try:
                         driver.send_cmd(70, driver.angular + 2)
                     else:
                         driver.send_cmd(70, driver.angular - 2)
-        if False: # Blocks recvform for some reason
+        if 1: # Blocks recvform for some reason
             cv2.imshow("Debug", detector.getDebugView())
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break

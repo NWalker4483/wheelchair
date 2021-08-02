@@ -1,3 +1,4 @@
+from __future__ import print_function
 import time
 import cv2
 from pyzbar.pyzbar import decode
@@ -8,22 +9,30 @@ import time
 from io import BytesIO
 from time import sleep
 from picamera import PiCamera
+from picamera.array import PiRGBArray
 from PIL import Image
-
-
+# import the necessary packages
+from imutils.video import WebcamVideoStream
+from imutils.video import FPS
+import argparse
+import imutils
+import cv2
 class Detector():
     def __init__(self, filename=None):
-
-        self.high_res = (512, 384)
-        self.low_res = (320, 240)
+        self.high_res = (640, 480)
+        self.low_res = (640, 480)
 
         self.high_res_view = None
         self.low_res_view = None
 
         self.debug_info = dict()
 
-        self.camera = PiCamera(sensor_mode = 5)
+        self.camera_stream = WebcamVideoStream(src=0).start()
         sleep(2)  # Warm Up camera
+        
+        self.update_views()
+    def stop(self):
+        self.camera_stream.stop()
     def getDebugView(self):
         frame = self.high_res_view
         if type(frame) == type(None):
@@ -82,26 +91,20 @@ class Detector():
             
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
 
-
         return frame
 
     def update_views(self):
-        self.stream = BytesIO()
-        self.camera.capture(self.stream, resize=self.high_res, format='jpeg', use_video_port=True)
-        self.stream.seek(0)
-        self.high_res_view = np.array(Image.open(self.stream))
-        self.stream = BytesIO()
-        self.camera.capture(self.stream, resize=self.low_res, format='jpeg', use_video_port=True)
-        self.stream.seek(0)
-        self.low_res_view = np.array(Image.open(self.stream))
-
+        frame = self.camera_stream.read()
+        frame = imutils.resize(frame, width=325)
+        self.low_res_view = frame
+        self.high_res_view = frame
+        # self.first = True
     def update(self):
+        
         self.update_views()
         marker_id, marker_pose = self.checkForMarker()
-        if marker_id != None:
-            guide_pose = self.getGuideLinePosition(clip_at = marker_pose.y)
-        else:
-            guide_pose = self.getGuideLinePosition()
+  
+        guide_pose = self.getGuideLinePosition()
 
         return guide_pose, marker_id, marker_pose
 
@@ -112,7 +115,6 @@ class Detector():
 
         frame = self.low_res_view
 
-        frame = cv2.medianBlur(frame, 5)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
         pnts = []
@@ -188,9 +190,17 @@ class Detector():
 
 
 if __name__ == '__main__':
+    import time
     det = Detector()
-    while True:  # loop over the frames from the video stream
-        det.update()
-        cv2.imshow("Debug", det.getDebugView())
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+    try:
+        while True:  # loop over the frames from the video stream
+            s=time.time()
+            det.update()
+            print("FPS: ", 1.0 / (time.time() - s))
+            cv2.imshow("Debug", det.getDebugView())
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    except KeyboardInterrupt as e:
+        print("Manual ShutOff")
+    finally:
+        det.stop()
