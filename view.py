@@ -27,14 +27,13 @@ UDP_PORT = 5005
 
 sock = socket.socket(socket.AF_INET,  # Internet
                      socket.SOCK_DGRAM)  # UDP
-
 def publish(topic, data):
     sock.sendto(topic.encode("utf-8")+b"/" +
                 data.encode("utf-8"), (UDP_IP, UDP_PORT))
 
 running = True
 
-control_update_topic = 'control_update'
+control_update_topic = 'cu'
 goal_update_topic = 'goal_update'
 
 joystick = pygame.joystick.Joystick(0)
@@ -48,8 +47,9 @@ while running:
         lvalue *= -100;
         avalue = joystick.get_axis(0) # Flipped Angular
         avalue *= 100;
-
-        publish(control_update_topic, f"{int(lvalue)}, {int(avalue)}")
+        if (abs(avalue) > 3) or (abs(lvalue) > 3):
+            publish(control_update_topic, f"{int(lvalue)}, {int(avalue)}")
+            active = True
 
     pressed = pygame.key.get_pressed()
     pressed = [i for i in range(len(pressed)) if pressed[i]]
@@ -58,12 +58,14 @@ while running:
         key_val = chr(key)
         if key_val in "qweasdzxc":
             publish(control_update_topic, key_val)
+            active = True
             
         elif (key_val in "1234567890"):
-            publish(goal_update_topic, key_val)
+            publish("exit", key_val)
             print(f"Goal Set to : {key_val}")
+            active = True
     if not active:
-        publish('idle', "0")
+        pass #publish('idle', "0")
     # pygame.display.flip()
     # - constant game speed / FPS -
     clock.tick(FPS)
