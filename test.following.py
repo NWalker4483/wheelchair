@@ -11,6 +11,7 @@ while True:
             first_seen = marker_id
         if marker_id != first_seen:
             print("Line Complete")
+            driver.stop()
             break
     cv2.imshow("Debug", detector.getDebugView())
     if cv2.waitKey(1) & 0xFF == ord('q'):

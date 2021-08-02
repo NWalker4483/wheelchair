@@ -11,7 +11,7 @@ from time import sleep
 from picamera import PiCamera
 from picamera.array import PiRGBArray
 from PIL import Image
-from imutils.video import WebcamVideoStream
+from imutils.video import VideoStream
 from imutils.video import FPS
 import argparse
 import imutils
@@ -26,7 +26,21 @@ class Detector():
 
         self.debug_info = dict()
 
-        self.camera_stream = WebcamVideoStream(src=0).start()
+        self.camera_stream = VideoStream(usePiCamera = True)
+        
+        # sleep(2)  # Warm Up camera
+        
+        #self.camera_stream.stream.shutter_speed = 10
+        #self.camera_stream.stream.awb_mode = 'off'
+        #self.camera_stream.stream.iso = 0
+        #self.camera_stream.stream.framerate = 30
+        
+        #self.camera_stream.stream.sharpness = 100
+        
+        self.camera_stream.stream.camera.shutter_speed = 8000
+        #self.camera_stream.stream.camera.exposure_mode = 'sports'
+        self.camera_stream.start()
+        
         sleep(2)  # Warm Up camera
         
         self.update_views()
@@ -39,8 +53,8 @@ class Detector():
             return np.zeros((10,10))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        if "marker_polygon" in self.debug_info:
-            polygon = self.debug_info["marker_polygon"]
+        if "marker" in self.debug_info:
+            polygon = self.debug_info["marker"]["polygon"]
             # Draw Corners
             frame = cv2.circle(
                 frame, (polygon[0].x, polygon[0].y), 12, (0, 255, 0), 5)
@@ -50,21 +64,17 @@ class Detector():
                 frame, (polygon[2].x, polygon[2].y), 12, (255, 0, 0), 5)
             frame = cv2.circle(
                 frame, (polygon[3].x, polygon[3].y), 12, (255, 255, 0), 5)
-            # cv2.line()
 
-        # TODO Rotate Marker ID to match marker rotation
-        if all([i in self.debug_info for i in ["marker_pose","marker_id"]]):
-
-            pose = self.debug_info["marker_pose"]
-            # font
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            # origin
-            org = (int(pose.x), int(pose.y))
-            fontScale = 5
-            color = (0, 0, 255)  # BGR
-            # Using cv2.putText() method
-            frame = cv2.putText(frame, str(self.debug_info["marker_id"]), org, font, fontScale,
-                                color, 5, cv2.LINE_AA, False)
+            if all([i in self.debug_info["marker"] for i in ["pose","id"]]):
+                # TODO Rotate Marker ID to match marker rotation
+                pose = self.debug_info["marker"]["pose"]
+                ID = self.debug_info["marker"]["id"]
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                org = (int(pose.x), int(pose.y))
+                fontScale = 5
+                color = (0, 0, 255)
+                frame = cv2.putText(frame, str(ID), org, font, fontScale,
+                                    color, 5, cv2.LINE_AA, False)
 
         if "mask_points" in self.debug_info:
             for x, y in self.debug_info["mask_points"]:
@@ -80,11 +90,12 @@ class Detector():
               
                 frame = cv2.circle(
                     frame, (int(x), int(y)), 2, (0, 0, 255), 7)
-        if "line_form" in self.debug_info:
-            m, b = self.debug_info["line_form"]
+        if "line" in self.debug_info:
+            m, b = self.debug_info["line"]["slope"],self.debug_info["line"]["bias"]
+            # Calculate Start and stop
             p1 = (int(b),0)
-            p2 = ( int(m*self.low_res[1] + b), self.low_res[1])
-            
+            p2 = (int(m*self.low_res[1] + b), self.low_res[1])
+            # Scale for high res view
             p1 = (int((p1[0]/self.low_res[0]) * self.high_res[0]),0)
             p2 = (int((p2[0]/self.low_res[0]) * self.high_res[0]),self.high_res[1])
             
@@ -94,18 +105,20 @@ class Detector():
 
     def update_views(self):
         frame = self.camera_stream.read()
-        frame = imutils.resize(frame, width=400)
+        frame = imutils.resize(frame, width=350)
         self.low_res_view = frame
         self.high_res_view = frame
-        # self.first = True
+        
     def update(self):
         self.update_views()
         marker_id, marker_pose = self.checkForMarker()
         
         if type(marker_pose) != type(None):
-            #TODO: 
+            #TODO: fix logic
             guide_pose = (0, marker_pose.x)
-            self.debug_info["line_form"] = (0, marker_pose.x)
+            self.debug_info["line"] = dict()
+            self.debug_info["line"]["slope"] = 0
+            self.debug_info["line"]["bias"] = marker_pose.x
         else:
             guide_pose = self.getGuideLinePosition()
         return guide_pose, marker_id, marker_pose
@@ -146,8 +159,9 @@ class Detector():
         if len(avg_points) > 3:
             m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
         else:
-            m, b = 0, 0
-        self.debug_info["line_form"] = (m, b)
+            m, b = 0, int(350/2) # TODO: 
+        self.debug_info["line"] = dict()
+        self.debug_info["line"]["slope"], self.debug_info["line"]["bias"] = m, b
         return (m, b)
 
     def checkForMarker(self):
@@ -162,34 +176,38 @@ class Detector():
 
         def dist(x1, y1, x2, y2):
             return ((x1-x2)**2 + (y1-y2)**2)**.5
+        
         frame = self.high_res_view
+        
         barcodes = decode(frame)
-        if len(barcodes) > 0:
-            marker = barcodes[0]
-            self.debug_info["marker_id"] = int(marker.data)
-            self.debug_info["marker_polygon"] = marker.polygon
+        marker = next(filter(lambda code: code.type == "QRCODE", barcodes), None)
+        if marker != None:
+            self.debug_info["marker"] = dict()
+            self.debug_info["marker"]["id"] = int(marker.data)
+            self.debug_info["marker"]["polygon"] = marker.polygon
+            
             p1 = marker.polygon[0]  # Upper Right
             p2 = marker.polygon[1]  # Lower Right
             p3 = marker.polygon[2]  # Upper Right
             p4 = marker.polygon[3]  # Lower Right
+            
             a = dist(p1.x, p1.y, p2.x, p2.y) + 1e-5
             b = dist(p2.x, p2.y, frame.shape[1], p2.y) + 1e-5
             c = dist(p1.x, p1.y, frame.shape[1], p2.y) + 1e-5
+            
             a, b, c, _, _, C = sss(a, b, c)
             rot = C * (180/pi)
+            
             if p1.y > p2.y:  # Flip Quadrant if upside down
                 rot = 180 + (180 - rot)
                 
-                
-            self.debug_info["marker_pose"] = Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
-            return int(marker.data), self.debug_info["marker_pose"]
+            self.debug_info["marker"]["pose"] = Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
+            
+            return self.debug_info["marker"]["id"], self.debug_info["marker"]["pose"]
         else:
-            if "marker_polygon" in self.debug_info:
-                del self.debug_info["marker_polygon"]
-                del self.debug_info["marker_pose"]
-                del self.debug_info["marker_id"]
+            if "marker" in self.debug_info:
+                del self.debug_info["marker"]
             return None, None
-
 
 if __name__ == '__main__':
     import time

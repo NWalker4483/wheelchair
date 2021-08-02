@@ -28,6 +28,7 @@ class Driver():
         self.angular = 0  # Lower Servo
         self.rotation_speed = 30 # 0:100%
     def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):
+        # bias should be normalized -1 : 1
         # TODO Maybe add filtering
         if (m < 0 and self.angular > 0) or (m > 0 and  self.angular < 0):
             self.angular = 0
