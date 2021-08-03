@@ -1,4 +1,3 @@
-from PIL.Image import RASTERIZE
 import serial
 from serial import Serial
 import time
@@ -25,17 +24,13 @@ class Driver():
         # self.last_update = None # time of last input
         self.attach(port) 
         self.linear = 0 # Upper Servo
-        self.angular = 0  # Lower Servo
-        self.rotation_speed = 30 # 0:100%
+        self.angular = 0  # Lower Servo 100 : -100 - Right : Left
     def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):
         # bias should be normalized -1 : 1
         # TODO Maybe add filtering
-        if (m < 0 and self.angular > 0) or (m > 0 and  self.angular < 0):
-            self.angular = 0
-        if m < 0:
-            self.send_cmd(drive_speed, self.angular + 2)
-        else:
-            self.send_cmd(drive_speed, self.angular - 2)
+        print(m, b)
+        cmd = (b * 50) + (m * 70)
+        self.send_cmd(drive_speed, cmd)
         
     def face(self, direction, detector, ID, tolerance = 3, max_det_gap = 200):
         """
@@ -120,9 +115,12 @@ if __name__ == '__main__':
     drive = Driver('/dev/ttyACM0')
     try:
         while True:
-            for angle in range(0, 360, 1):
-                x, y = rotate((0,100), (0, 0), angle)
+            for x,y in [(100,0),(-100,0),(0,100),(0,-100),(0,0)]:
                 drive.send_cmd(x, y)
+                time.sleep(1)
+            #for angle in range(0, 360, 1):
+            #    x, y = rotate((0,100), (0, 0), angle)
+            #    drive.send_cmd(x, y)
                 time.sleep(1/60)
     finally:
         drive.stop()

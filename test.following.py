@@ -2,7 +2,7 @@ from driver import Driver
 from detector import Detector
 import cv2
 driver = Driver('/dev/ttyACM0')
-detector = Detector()# 'test_data/green.mp4')
+detector = Detector()
 first_seen = -1
 while True:
     line_form, marker_id, _ = detector.update()
@@ -17,7 +17,7 @@ while True:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
     if first_seen != -1:
-        driver.adjust_to_line(*line_form, drive_speed = 90)
+        driver.adjust_to_line(*line_form, drive_speed = 80)
         print("Following Line...")
     else:
         print("Waitng to see start marker...")

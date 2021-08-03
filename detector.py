@@ -3,7 +3,7 @@ import time
 import cv2
 from pyzbar.pyzbar import decode
 from tf import Pose
-from math import pi, acos
+from math import pi, acos, atan
 import numpy as np
 import time
 from io import BytesIO
@@ -28,8 +28,6 @@ class Detector():
 
         self.camera_stream = VideoStream(usePiCamera = True)
         
-        # sleep(2)  # Warm Up camera
-        
         #self.camera_stream.stream.shutter_speed = 10
         #self.camera_stream.stream.awb_mode = 'off'
         #self.camera_stream.stream.iso = 0
@@ -53,9 +51,12 @@ class Detector():
             return np.zeros((10,10))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        if "marker" in self.debug_info:
+        if all([i in self.debug_info.get("marker", dict()) for i in ["pose","id","polygon"]]):
             polygon = self.debug_info["marker"]["polygon"]
-            # Draw Corners
+            pose = self.debug_info["marker"]["pose"]
+            ID = self.debug_info["marker"]["id"]
+            
+            # Draw Polygon Corners
             frame = cv2.circle(
                 frame, (polygon[0].x, polygon[0].y), 12, (0, 255, 0), 5)
             frame = cv2.circle(
@@ -64,17 +65,17 @@ class Detector():
                 frame, (polygon[2].x, polygon[2].y), 12, (255, 0, 0), 5)
             frame = cv2.circle(
                 frame, (polygon[3].x, polygon[3].y), 12, (255, 255, 0), 5)
+            frame = cv2.circle(
+                frame, (int(pose.x), int(pose.y)), 12, (255, 255, 255), 2)
 
-            if all([i in self.debug_info["marker"] for i in ["pose","id"]]):
-                # TODO Rotate Marker ID to match marker rotation
-                pose = self.debug_info["marker"]["pose"]
-                ID = self.debug_info["marker"]["id"]
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                org = (int(pose.x), int(pose.y))
-                fontScale = 5
-                color = (0, 0, 255)
-                frame = cv2.putText(frame, str(ID), org, font, fontScale,
-                                    color, 5, cv2.LINE_AA, False)
+            # TODO Rotate Marker ID to match marker rotation
+          
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            org = (int(pose.x), int(pose.y))
+            fontScale = 5
+            color = (0, 0, 255)
+            frame = cv2.putText(frame, str(ID), org, font, fontScale,
+                                color, 5, cv2.LINE_AA, False)
 
         if "mask_points" in self.debug_info:
             for x, y in self.debug_info["mask_points"]:
@@ -92,12 +93,18 @@ class Detector():
                     frame, (int(x), int(y)), 2, (0, 0, 255), 7)
         if "line" in self.debug_info:
             m, b = self.debug_info["line"]["slope"],self.debug_info["line"]["bias"]
+            b += 1
+            b *= self.high_res[1] // 2
+            
             # Calculate Start and stop
             p1 = (int(b),0)
-            p2 = (int(m*self.low_res[1] + b), self.low_res[1])
-            # Scale for high res view
-            p1 = (int((p1[0]/self.low_res[0]) * self.high_res[0]),0)
-            p2 = (int((p2[0]/self.low_res[0]) * self.high_res[0]),self.high_res[1])
+            p2 = (int(m*self.high_res[1] + b), self.high_res[1])
+            
+            bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
+            
+            frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
+            
+            frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
             
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
 
@@ -106,8 +113,13 @@ class Detector():
     def update_views(self):
         frame = self.camera_stream.read()
         frame = imutils.resize(frame, width=350)
-        self.low_res_view = frame
+        self.high_res = frame.shape
         self.high_res_view = frame
+        
+        frame = imutils.resize(frame, width=200)
+        self.low_res = frame.shape
+        self.low_res_view = frame
+        
         
     def update(self):
         self.update_views()
@@ -115,10 +127,19 @@ class Detector():
         
         if type(marker_pose) != type(None):
             #TODO: fix logic
-            guide_pose = (0, marker_pose.x)
             self.debug_info["line"] = dict()
-            self.debug_info["line"]["slope"] = 0
-            self.debug_info["line"]["bias"] = marker_pose.x
+            angle = marker_pose.rot
+            angle -= 180 if angle > 180 else 0
+            angle = angle - 90 # TODO:
+            slope = atan(angle * (3.14/180))
+    
+            self.debug_info["line"]["slope"] = slope
+            bias = marker_pose.x - (slope * marker_pose.y)
+            print(bias)
+            #bias = 200
+            self.debug_info["line"]["bias"] = (bias - (self.high_res_view.shape[1] // 2)) / (self.high_res_view.shape[1]//2)
+            print(self.debug_info["line"]["bias"])
+            guide_pose = (self.debug_info["line"]["slope"], self.debug_info["line"]["bias"])
         else:
             guide_pose = self.getGuideLinePosition()
         return guide_pose, marker_id, marker_pose
@@ -142,8 +163,6 @@ class Detector():
                 for x in range(0, mask.shape[1], 5):
                     if mask[y][x] > 125:
                         if x > int(.1 * self.low_res[0]) and x <int(.8 * self.low_res[0]):
-                            if clip_at != None:
-                                pass
                             vals.append([x, y + i])
             if len(vals) > 0:
                 pnts.append(np.mean(vals, axis=0))
@@ -155,11 +174,12 @@ class Detector():
 
         self.debug_info["mask_points"] = mask_points
         self.debug_info["line_points"] = avg_points
-        # avg_points = mask_points
         if len(avg_points) > 3:
             m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
+            b -= frame.shape[1]//2
+            b /= frame.shape[1]//2
         else:
-            m, b = 0, int(350/2) # TODO: 
+            m, b = 0, 0 
         self.debug_info["line"] = dict()
         self.debug_info["line"]["slope"], self.debug_info["line"]["bias"] = m, b
         return (m, b)
