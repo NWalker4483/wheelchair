@@ -16,16 +16,23 @@ class UDPStream(Thread):
         self.__raw_data = ''
         self.sock = socket
         self.alive = True
-        self.delimiter = ';'
     def run(self):
         while self.alive:
-            recv_data = self.sock.recv(4)
+            recv_data = self.sock.recv(1024)
             if not recv_data:
                 continue
-            if recv_data[:-1] == self.delimiter:
-                self.data["last"] = self.__raw_data
-            else:
-                self.data["last"] += recv_data.decode()
+            self.__raw_data += recv_data.decode()
+            start, stop = -1, -1
+            for i in range(len(self.__raw_data) - 1, -1, -1):
+                if start == -1 and self.__raw_data[i] == ";":
+                    stop = i
+                if stop != -1 and self.__raw_data[i] == "#":
+                    start = i
+                    break
+         
+            if start >= 0  and stop >= 0 and stop > start:
+                self.data["last"] = self.__raw_data[start + 1: stop]
+                self.__raw_data = self.__raw_data[stop:]
                 self.data["cap_time"] = time.time()
     def close(self):
         self.alive = False
@@ -34,7 +41,7 @@ class UDPStream(Thread):
 driver = Driver('/dev/ttyACM0')
 detector = Detector()
 
-control_update_topic = 'c'
+control_update_topic = 'j'
 goal_update_topic = 'g'
 idle_topic = 'i'
 
@@ -56,40 +63,16 @@ running = True
 s=time.time()
 try:
     while running:
-        print("FPS: ", 1.0 / (time.time() - s))
+        # print("FPS: ", 1.0 / (time.time() - s))
         s = time.time()
         
         if time.time() - sock.data["cap_time"] > .5:
             raw_data = idle_topic + "/0"
         else:
             raw_data = sock.data["last"]
-        print(raw_data)
         topic, data = raw_data.split('/')
         if topic == control_update_topic:
-            last_sent = data
-            if (data == 'q'):
-                driver.send_cmd(100, -100)
-            elif (data == 'w'):
-                driver.send_cmd(100, 0)
-            elif (data == 'e'):
-                driver.send_cmd(100, 100)
-            elif (data == 'a'):
-                driver.send_cmd(0, -100)
-            elif (data == 's'):
-                driver.send_cmd(0, 0)
-            elif (data == 'd'):
-                driver.send_cmd(0, 100)
-            elif (data == 'z'):
-                driver.send_cmd(-100, -100)
-            elif (data == 'x'):
-                driver.send_cmd(-100, 0)
-            elif (data == 'c'):
-                driver.send_cmd(-100, 100)
-            elif len(data.split(",")) == 2:
-                lin, ang = [int(i) for i in data.split(",")]
-                driver.send_cmd(lin, ang)
-            else:
-                print(data)
+            driver.send_cmd(*[int(i) for i in data.split(",")])
                 
         elif topic == goal_update_topic:
             if current_goal != int(data):
@@ -100,7 +83,7 @@ try:
                       current_step = -1
         elif topic == "e":
             running = False
-        
+            
         if len(current_path) > 0:
             if current_goal != current_path[-1]:
                 try:
@@ -131,8 +114,6 @@ try:
                     
                       
                 elif current_step == 0: # We still havent found the first marker
-                    # An ID other than the intended starting ID was seen first
-                    # IDK if its necessary but I wrote this part sober so imma levae it alone
                     continue    
                 else:
                     # TODO Maybe add filtering

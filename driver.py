@@ -2,6 +2,7 @@ import serial
 from serial import Serial
 import time
 from detector import Detector
+from simple_pid import PID
 """
 The driver class contains functions for controlling the arduino joystick 
 and high-level operations like facing right, left, stopping etc.
@@ -17,19 +18,22 @@ def translate(value, leftMin, leftMax, rightMin, rightMax):
 
     # Convert the 0-1 range into a value in the right range.
     return rightMin + (valueScaled * rightSpan)
-
+ 
+import cv2
 class Driver(): 
     def __init__(self, port):
-        # self.gotManualInput = False
-        # self.last_update = None # time of last input
         self.attach(port) 
-        self.linear = 0 # Upper Servo
-        self.angular = 0  # Lower Servo 100 : -100 - Right : Left
-    def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):
-        # bias should be normalized -1 : 1
-        # TODO Maybe add filtering
-        print(m, b)
-        cmd = (b * 50) + (m * 70)
+        self.linear = 0 # Upper Servo 
+        self.angular = 0  # Lower Servo -100 : 100 - Right : Left
+    
+    def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):      
+        raise(NotImplementedError)
+        # TODO: try decision trees
+        if abs(b) <= .65:
+            cmd = (abs(b) * 100) + (abs(m) * 85)
+            cmd = cmd if m >= 0 else -cmd
+        else:
+            cmd = b * 150
         self.send_cmd(drive_speed, cmd)
         
     def face(self, direction, detector, ID, tolerance = 3, max_det_gap = 200):
@@ -48,34 +52,29 @@ class Driver():
             raise(e)
 
         goal_rotations = {0: 270, 1: 90, 2: 180, 3: 0}
-        current_rotation = 45 # * Could be any noncardinal direction
         gap = 0
         turn_val = 0
-        first_found = False
-        while (abs(current_rotation - goal_rotations[direction]) > tolerance) or not first_found:
+        min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
+        angle_error = 10e5
+        pid = PID(.125, .125, .25)
+        pid.setpoint = 0
+        pid.sample_time = 1/10 # 10 Hz
+        pid.output_limits = (-100, 100)  # Output will always be above 0, but with no upper bound
+        pid.error_map = lambda x: min_ang_dist(x,goal_rotations[direction]) 
+        while (abs(angle_error) > tolerance):
             if gap >= max_det_gap:
                 self.stop()
-                # raise Exception("Tracking lost For too long")
+                raise Exception("Tracking lost For too long")
             _, seen, local_marker_pose = detector.update()
+                
             if seen == ID:
                 gap = 0
-                current_rotation = local_marker_pose.rot
-                first_found = True
-                print(current_rotation,  goal_rotations[direction])
+                # Flip Left and Right
+                control = -pid(local_marker_pose.rot)
+                self.send_cmd(0, control)
+                # print(min_ang_dist(local_marker_pose.rot, goal_rotations[direction]), control)
             else:
                 gap += 1
-            if first_found:
-                # TODO: Convert to PID or something smoother in general
-                # https://stackoverflow.com/questions/7428718/algorithm-or-formula-for-the-shortest-direction-of-travel-between-two-degrees-on
-                if ((goal_rotations[direction] - current_rotation + 360) % 360 < 180):
-                    if turn_val < 0: 
-                        turn_val = 0
-                    turn_val += 10 if turn_val < 100 else 0
-                else:
-                    if turn_val > 0: 
-                        turn_val = 0
-                    turn_val -= 10 if turn_val > -100 else 0
-            self.send_cmd(0, turn_val)
 
     def attach(self, serial_port):
         self.ser = Serial(serial_port, 9600)
@@ -100,7 +99,6 @@ if __name__ == '__main__':
     import numpy as np
     import math
 
-    import numpy as np
     def rotate(point, origin, degrees):
         radians = np.deg2rad(degrees)
         x,y = point

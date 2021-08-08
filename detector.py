@@ -17,7 +17,12 @@ import argparse
 import imutils
 import cv2
 class Detector():
-    def __init__(self, filename=None):
+    def __init__(self, filename=None,debug=False):
+        self.debug = debug
+        
+        
+        self.lower_hsv = np.array([32, 42, 0])
+        self.upper_hsv = np.array([60, 182, 255])
         self.high_res = (640, 480)
         self.low_res = (640, 480)
         
@@ -27,36 +32,24 @@ class Detector():
         self.debug_info = dict()
 
         self.camera_stream = VideoStream(usePiCamera = True)
-        
-        #self.camera_stream.stream.shutter_speed = 10
-        #self.camera_stream.stream.awb_mode = 'off'
-        #self.camera_stream.stream.iso = 0
-        #self.camera_stream.stream.framerate = 30
-        
-        #self.camera_stream.stream.sharpness = 100
-        
-        self.camera_stream.stream.camera.shutter_speed = 8000
-        #self.camera_stream.stream.camera.exposure_mode = 'sports'
+        self.camera_stream.stream.camera.shutter_speed = 2000 # Drop to reduce Motion Blur
         self.camera_stream.start()
         
         sleep(2)  # Warm Up camera
-        
         self.update_views()
+        
     def stop(self):
         self.camera_stream.stop()
+        
     def getDebugView(self):
         frame = self.high_res_view
-        if type(frame) == type(None):
-            import numpy as np
-            return np.zeros((10,10))
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
+  
         if all([i in self.debug_info.get("marker", dict()) for i in ["pose","id","polygon"]]):
             polygon = self.debug_info["marker"]["polygon"]
             pose = self.debug_info["marker"]["pose"]
             ID = self.debug_info["marker"]["id"]
             
-            # Draw Polygon Corners
+            # Draw QR Code corners
             frame = cv2.circle(
                 frame, (polygon[0].x, polygon[0].y), 12, (0, 255, 0), 5)
             frame = cv2.circle(
@@ -66,13 +59,13 @@ class Detector():
             frame = cv2.circle(
                 frame, (polygon[3].x, polygon[3].y), 12, (255, 255, 0), 5)
             frame = cv2.circle(
-                frame, (int(pose.x), int(pose.y)), 12, (255, 255, 255), 2)
+                frame, (int(pose.x), int(pose.y)), 6, (255, 255, 255), 2)
 
             # TODO Rotate Marker ID to match marker rotation
           
             font = cv2.FONT_HERSHEY_SIMPLEX
             org = (int(pose.x), int(pose.y))
-            fontScale = 5
+            fontScale = 2.5
             color = (0, 0, 255)
             frame = cv2.putText(frame, str(ID), org, font, fontScale,
                                 color, 5, cv2.LINE_AA, False)
@@ -82,7 +75,7 @@ class Detector():
                 x, y = int((x/self.low_res[0]) * self.high_res[0]
                            ), int((y/self.low_res[1]) * self.high_res[1])
                 frame = cv2.circle(
-                    frame, (int(x) , int(y)), 2, (255, 0, 255), 2)
+                    frame, (int(x) , int(y)), 2, (165, 0, 55), 2)
 
         if "line_points" in self.debug_info:
             for x, y in self.debug_info["line_points"]:
@@ -93,8 +86,9 @@ class Detector():
                     frame, (int(x), int(y)), 2, (0, 0, 255), 7)
         if "line" in self.debug_info:
             m, b = self.debug_info["line"]["slope"],self.debug_info["line"]["bias"]
-            b += 1
-            b *= self.high_res[1] // 2
+            offset = abs(b) * (self.high_res[1] // 2)
+            b = offset if b > 0 else -offset
+            b += (self.high_res[1] // 2)
             
             # Calculate Start and stop
             p1 = (int(b),0)
@@ -107,12 +101,31 @@ class Detector():
             frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
             
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
-
+        if "zones" in self.debug_info:
+            
+            for p1, p2, is_green  in self.debug_info["zones"]:
+                x,y = p1
+                x, y = int((x/self.low_res[1]) * self.high_res[1]
+                           ), int((y/self.low_res[0]) * self.high_res[0])
+                p1 = (x,y )
+                
+                x,y = p2
+                x, y = int((x/self.low_res[1]) * self.high_res[1]
+                           ), int((y/self.low_res[0]) * self.high_res[0])
+                p2 = (x,y )
+                frame = cv2.rectangle(frame, p1, p2, color = (0,255,0) if is_green else (0,0,255), thickness = -1)
+            
+            x,y = self.debug_info["center"]
+            x, y = int((x/self.low_res[1]) * self.high_res[1]
+                           ), int((y/self.low_res[0]) * self.high_res[0])
+            p = (x,y )
+            frame = cv2.circle(
+                frame, p, 6, (255, 0, 0), 2)
         return frame
 
     def update_views(self):
         frame = self.camera_stream.read()
-        frame = imutils.resize(frame, width=350)
+        frame = imutils.resize(frame, width=450)
         self.high_res = frame.shape
         self.high_res_view = frame
         
@@ -126,33 +139,84 @@ class Detector():
         marker_id, marker_pose = self.checkForMarker()
         
         if type(marker_pose) != type(None):
-            #TODO: fix logic
-            self.debug_info["line"] = dict()
             angle = marker_pose.rot
             angle -= 180 if angle > 180 else 0
-            angle = angle - 90 # TODO:
+            
+            min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
+            
+            base = min([0, 90, 180, 270], key = lambda x: abs(min_ang_dist(angle, x)))
+            angle = -min_ang_dist(angle, base) 
             slope = atan(angle * (3.14/180))
-    
+            
+            self.debug_info["line"] = dict()
             self.debug_info["line"]["slope"] = slope
             bias = marker_pose.x - (slope * marker_pose.y)
-            print(bias)
-            #bias = 200
             self.debug_info["line"]["bias"] = (bias - (self.high_res_view.shape[1] // 2)) / (self.high_res_view.shape[1]//2)
-            print(self.debug_info["line"]["bias"])
-            guide_pose = (self.debug_info["line"]["slope"], self.debug_info["line"]["bias"])
+            guide_pose = (self.debug_info["line"]["slope"], self.debug_info["line"]["bias"]) 
         else:
             guide_pose = self.getGuideLinePosition()
+        self.checkZones()
+        if self.debug:
+            cv2.imshow("Debug", self.getDebugView())
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                pass
         return guide_pose, marker_id, marker_pose
-
-    def getGuideLinePosition(self, clip_at = None):
-        # Line Color Range
-        lower_hsv = np.array([27, 103, 103])
-        upper_hsv = np.array([120, 202, 220])
+    
+    def checkZones(self):
 
         frame = self.low_res_view
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+        mask = cv2.inRange(hsv, self.lower_hsv, self.upper_hsv)
+        
+        start = 0
+        stop = 0
+        zones = [] # ((x1,y1),(), bool)
+        for stop in np.linspace(0, frame.shape[1], 25):
+            stop = int(stop) 
+            p1 = (start,int(mask.shape[0] * (1 - .15)) - 50)
+            p2 = (stop, mask.shape[0] - 50)
+            crop = mask[p1[1]:p2[1], p1[0]: p2[0]]
+            val = np.sum(crop > 125) > (crop.shape[0]*crop.shape[1]) * .8
+            
+            if 30 > start or start > 180:
+                val = False
+            start = stop
+            
+            zones.append((p1, p2, val))
+            
+        self.debug_info["zones"] = zones
+        start = 0
+        stop = 0
+        curr_start = 0
+        best_val = 0
+        curr_val = 0
+        for i, zone in enumerate(self.debug_info["zones"] + [((None),(None),False)]):
+            p1, p2, is_green = zone
+            if is_green:
+                if curr_val == 0:
+                    curr_start = i
+                curr_val += 1
+            elif curr_val > best_val:
+                stop = i - 1
+                start = curr_start
+                best_val = curr_val
+            else:
+                curr_val = 0
+        start, stop = self.debug_info["zones"][start],self.debug_info["zones"][stop]
+        a, _, _ = start
+        _, b, _ = stop
+        p = (a[0] + ((b[0] - a[0]) //2), a[1] + ((b[1] - a[1]) // 2))
+        
+        self.debug_info["center"] = p
+            
+        
+    def getGuideLinePosition(self):
+
+        frame = self.low_res_view
+
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, self.lower_hsv, self.upper_hsv)
         pnts = []
         avg_points = []
         mask_points = []
@@ -162,8 +226,8 @@ class Detector():
             for i in range(0, 15, 5):  # Sample each of the strips four times
                 for x in range(0, mask.shape[1], 5):
                     if mask[y][x] > 125:
-                        if x > int(.1 * self.low_res[0]) and x <int(.8 * self.low_res[0]):
-                            vals.append([x, y + i])
+                        #if x > int(.1 * self.low_res[0]) and x < int(.8 * self.low_res[0]):
+                        vals.append([x, y + i])
             if len(vals) > 0:
                 pnts.append(np.mean(vals, axis=0))
             mask_points += vals
@@ -231,15 +295,12 @@ class Detector():
 
 if __name__ == '__main__':
     import time
-    det = Detector()
+    det = Detector(debug = True)
     try:
         while True:  # loop over the frames from the video stream
             s=time.time()
             det.update()
             print("FPS: ", 1.0 / (time.time() - s))
-            cv2.imshow("Debug", det.getDebugView())
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
     except KeyboardInterrupt as e:
         print("Manual ShutOff")
     finally:

@@ -51,15 +51,15 @@ textPrint = TextPrint()
 # -------- Main Program Loop -----------
 while done==False:
     # EVENT PROCESSING STEP
-    for event in pygame.event.get(): # User did something
-        if event.type == pygame.QUIT: # If user clicked close
-            done=True # Flag that we are done so we exit this loop
-        
-        # Possible joystick actions: JOYAXISMOTION JOYBALLMOTION JOYBUTTONDOWN JOYBUTTONUP JOYHATMOTION
-        if event.type == pygame.JOYBUTTONDOWN:
-            print("Joystick button pressed.")
-        if event.type == pygame.JOYBUTTONUP:
-            print("Joystick button released.")
+    #for event in pygame.event.get(): # User did something
+    #    if event.type == pygame.QUIT: # If user clicked close
+    #        done=True # Flag that we are done so we exit this loop
+    #    
+    #    # Possible joystick actions: JOYAXISMOTION JOYBALLMOTION JOYBUTTONDOWN JOYBUTTONUP JOYHATMOTION
+    #    if event.type == pygame.JOYBUTTONDOWN:
+    #        print("Joystick button pressed.")
+    #    if event.type == pygame.JOYBUTTONUP:
+    #        print("Joystick button released.")
     # DRAWING STEP
     # First, clear the screen to white. Don't put other drawing commands
     # above this, or they will be erased with this command.
@@ -95,12 +95,13 @@ while done==False:
             textPrint.print(screen, "Axis {} value: {}".format(i, axis) )
         textPrint.unindent()
             
-        buttons = joystick.get_numbuttons()
-        textPrint.print(screen, "Number of buttons: {}".format(buttons) )
-        textPrint.indent()
+        #buttons = joystick.get_numbuttons()
+        #textPrint.print(screen, "Number of buttons: {}".format(buttons) )
+        #textPrint.indent()
  
-        for i in range( buttons ):
+        for i in range( 1 ):
             button = joystick.get_button( i )
+            print(button)
             textPrint.print(screen, "Button {:>2} value: {}".format(i,button) )
         textPrint.unindent()
             
@@ -121,10 +122,10 @@ while done==False:
     # ALL CODE TO DRAW SHOULD GO ABOVE THIS COMMENT
     
     # Go ahead and update the screen with what we've drawn.
-    pygame.display.flip()
+    #pygame.display.flip()
  
     # Limit to 20 frames per second
-    clock.tick(20)
+    #clock.tick(20)
     
 # Close the window and quit.
 # If you forget this line, the program will 'hang'

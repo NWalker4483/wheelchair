@@ -7,15 +7,20 @@ import time
 
 # initialize the video stream, sensors, etc
 print("[INFO] starting video stream...")
-vs = VideoStream(0).start()
-img = vs.read()
-img = imutils.resize(img, width=500)
+vs = VideoStream(usePiCamera = True)
+        
+vs.stream.camera.shutter_speed = 2000
+vs = vs.start()
+time.sleep(2)
 
 window_name = "HSV Calibrator"
 cv.namedWindow(window_name)
-img = cv.medianBlur(img,5)
+
 
 # Convert BGR to HSV
+img = vs.read()
+img = imutils.resize(img, width=500)
+img = cv.medianBlur(img,5)
 hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
 uh = 130
@@ -55,6 +60,11 @@ lower_hsv_old, upper_hsv_old = () , ()
 
 mask = cv.inRange(hsv, lower_hsv, upper_hsv)
 while(1):
+    img = vs.read()
+    img = imutils.resize(img, width=500)
+    img = cv.medianBlur(img,5)
+    hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
+
     # Threshold the HSV image to get only blue colors
     if (tuple(lower_hsv_old) != tuple(lower_hsv) or tuple(upper_hsv_old) != tuple(upper_hsv)):
         lower_hsv_old, upper_hsv_old = lower_hsv, upper_hsv

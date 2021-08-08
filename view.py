@@ -3,19 +3,6 @@ import socket
 import pygame
 import utils.colors as colors
 
-def text_to_screen(screen, text, x, y, size = 50,
-            color = (200, 000, 000), font_type = 'data/fonts/orecrusherexpand.ttf'):
-    try:
-
-        text = str(text)
-        font = pygame.font.Font(font_type, size)
-        text = font.render(text, True, color)
-        screen.blit(text, (x, y))
-
-    except Exception as e:
-        print('Font Error, saw it coming')
-        raise(e)
-
 FPS = 30
 pygame.init()
 pygame.display.set_caption("Control System")
@@ -28,8 +15,8 @@ UDP_PORT = 5005
 sock = socket.socket(socket.AF_INET,  # Internet
                      socket.SOCK_DGRAM)  # UDP
 def publish(topic, data):
-    sock.sendto(topic.encode("utf-8")+b"/" +
-                data.encode("utf-8"), (UDP_IP, UDP_PORT))
+    cmd_str = f"#{topic}/{data};"
+    sock.sendto(cmd_str.encode("utf-8"), (UDP_IP, UDP_PORT))
 
 running = True
 

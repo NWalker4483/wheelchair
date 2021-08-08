@@ -4,10 +4,10 @@ class QrMap():
         """All the time the option to be connected to another note through one of four directions"""
         self.__connections = {
             # [top, bottom, left, right]
-            1: [0,3,0,0], 
-            2: [0,3,0,0], 
-            3: [4,2,0,1], 
-            4: [3,0,0,0]}
+            1: [0,2,0,4], 
+            2: [0,3,0,1], 
+            3: [0,4,0,2], 
+            4: [0,1,0,3]}
 
     def get_connection_direction(self, start,other):
         try:
@@ -46,7 +46,7 @@ class QrMap():
 
     @staticmethod
     def load(filename):
-        return QrMap()
+        raise(NotImplementedError)
 if __name__ == '__main__':
     a = QrMap()
     print(a.get_plan(1,4))
