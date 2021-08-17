@@ -68,72 +68,77 @@ lost = True
 
 running = True
 
-s = time.time()
+start_time = time.time()
 
 try:
     while running:
-        # print("FPS: ", 1.0 / (time.time() - s))
-        s = time.time()
-        
-        if time.time() - sock.data["cap_time"] > .5:
-            raw_data = idle_topic + "/0"
-        else:
+        # print("FPS: ", 1.0 / (time.time() - start_time))
+        start_time = time.time()
+
+        # Grab Data from Listener
+        if time.time() - sock.data["cap_time"] <= .5:
             raw_data = sock.data["last"]
+        else:
+            raw_data = idle_topic + "/0"
+
         topic, data = raw_data.split('/')
-        if topic == control_update_topic:
-            driver.send_cmd(*[int(i) for i in data.split(",")])
-                
-        elif topic == goal_update_topic:
-            if current_goal != int(data):
-                current_goal = int(data)
-                print(f"Current Goal: {current_goal}")
-                if len(current_path) == 0: 
-                      lost = True
-                      current_step = -1
-                      
-        elif topic == "e":
-            running = False
-            
-        if (len(current_path) > 0) and (current_goal != current_path[-1]):
-            try:
-                current_path = map.get_plan(current_path[current_step], current_goal)
-                current_step = 0
-            except Exception as e:
-                print("Invalid Goal Set")
-                raise(e)
-            
-        if (len(current_path) > 0) or lost:
-            local_line_form, marker_id, local_marker_pose = detector.update()
-            
-            if marker_id != None: # Marker in frame
-                if (lost):
-                      # Setup the other loop to calculate the set path
-                      current_path = [marker_id]
-                      current_step = 0
-                elif marker_id == current_path[current_step]: # We're on the next step
-                    current_step += 1
-                    if current_step == len(current_path) or marker_id == current_goal:
-                        current_path = []
-                        current_goal = -1
-                        current_step = -1
-                        print("Goal Reached")
-                        continue
-                    direction = map.get_connection_direction(path[current_path], path[current_path + 1]) # Face Direction 
-                    driver.face(direction, detector, marker_id)
+
+        try:
+            if topic == control_update_topic:
+                driver.send_cmd(*[int(i) for i in data.split(",")])
                     
-                      
-                elif current_step == 0: # We still havent found the first marker
-                    continue    
-                else:
-                    # TODO Maybe add filtering
-                    if local_line_form[0] > 0:
-                        driver.send_cmd(70, driver.angular + 2)
-                    else:
-                        driver.send_cmd(70, driver.angular - 2)
-        if 1: # Blocks recvform for some reason
-            cv2.imshow("Debug", detector.getDebugView())
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            elif topic == goal_update_topic:
+                if current_goal != int(data):
+                    current_goal = int(data)
+                    print(f"Current Goal: {current_goal}")
+                    if len(current_path) == 0: 
+                        lost = True
+                        current_step = -1
+                        current_path = [-1]
+                    if (current_goal != current_path[-1]):
+                        try:
+                            current_path = map.get_plan(current_path[current_step], current_goal)
+                            current_step = 0
+                        except Exception as e:
+                            print("Invalid Goal Set")
+                            raise(e)
+            
+            elif topic == "e": # For Exit
+                running = False
+                    
+            
+                
+            if (len(current_path) > 0) or lost:
+                local_line_form, marker_id, local_marker_pose = detector.update()
+                
+                if marker_id != None: # Marker in frame
+                    if (lost): # Setup the other loop to calculate the set path
+                        current_path = [marker_id]
+                        current_step = 0
+                    elif marker_id == current_path[current_step]: # We're on the next step
+                        current_step += 1
+                        if (current_step == len(current_path)) or (marker_id == current_goal):
+                            current_path = []
+                            current_goal = -1
+                            current_step = 0
+                            print("Goal Reached")
+                            continue
+                        direction = map.get_connection_direction(current_path[current_step], current_path[current_step + 1]) # Face Direction 
+                        driver.face(direction, detector, marker_id)
+                    elif (current_step == 0) or (marker_id not in current_path): # We still havent found the first marker so just 
+                        current_path = [marker_id]
+                        current_step = 0
+                        current_goal = -1
+                        continue    # Just Wait
+                    # else:
+                    #     # TODO Following the line
+                    #     if local_line_form[0] > 0:
+                    #         driver.send_cmd(70, driver.angular + 2)
+                    #     else:
+                    #         driver.send_cmd(70, driver.angular - 2)
+        except Exception as e:
+            # Reconnect 
+            raise(e)
 finally:
     sock.close()
     driver.stop()
