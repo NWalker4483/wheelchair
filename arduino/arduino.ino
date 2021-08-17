@@ -4,27 +4,34 @@
 #define y_in A5
 #define deadzone 25
 
-#define Y_MAX_OFFSET 70 // Left/Right
-#define Y_ZERO 90
+// TOP
+#define Y_DEADZONE 10 // NotImplemented
+#define Y_MAX 2200  // Forward/Reverse
+#define Y_ZERO 1700
+#define Y_MIN 1100  // Forward/Reverse
+// BOTTOM
+#define X_DEADZONE 10 // NotImplemented
+#define X_MAX 2400 // Left/Right
+#define X_ZERO 1700
+#define X_MIN 1000 // Left/Right
 
-#define X_MAX_OFFSET 90  // Forward/Reverse
-#define X_ZERO 90
+#define CONFIG 0
 
 #define TIMEOUT_SECONDS 2
 #define MANUAL2AUTO_DELAY 3
 
 Servo x_servo; // create servo object to control a servo
-const int x_servo_pin = 5;
+const int x_servo_pin = 3;
 Servo y_servo; // create servo object to control a servo
-const int y_servo_pin = 3;
+const int y_servo_pin = 5;
 
 byte cmd_buffer[2];
 unsigned long last_cmd;
 unsigned long last_manual_cmd;
 
-void setState(int x, int y) {
+void setState(int y, int x) {
   last_cmd = millis();
-  x = constrain(x, -100, 100);
+  x = constrain(-x, -100, 100);
   y = constrain(y, -100, 100);
 
   float magnitude = sqrt((x * x) + (y * y));
@@ -40,16 +47,24 @@ void setState(int x, int y) {
   x = x_norm * magnitude;
   y = y_norm * magnitude;
 
-  x = map(x, -100, 100, X_ZERO - X_MAX_OFFSET, X_ZERO + X_MAX_OFFSET);
-  y = map(y, -100, 100, Y_ZERO - Y_MAX_OFFSET, Y_ZERO + Y_MAX_OFFSET);
+  if (x > 0){
+  x = map(x, 0, 100, X_ZERO, X_MAX);
+  } else {
+     x = map(x, 0, -100, X_ZERO, X_MIN);
+  }
+  if (y > 0){
+  y = map(y, 0, 100, Y_ZERO, Y_MAX);
+  } else {
+    y = map(y, 0, -100, Y_ZERO, Y_MIN);
+  }
   
-  x_servo.write(x);
-  y_servo.write(y);
+  x_servo.writeMicroseconds(x);
+  y_servo.writeMicroseconds(y);
 }
 
 void stop() {
-  x_servo.write(X_ZERO);
-  y_servo.write(Y_ZERO);
+  x_servo.writeMicroseconds(X_ZERO);
+  y_servo.writeMicroseconds(Y_ZERO);
   delay(100);
 }
 
@@ -63,6 +78,25 @@ void setup() {
 }
 
 void loop() {
+  while (CONFIG){
+    int _delay = 1000;
+    setState(100,0);
+    delay(_delay);
+    setState(0,0);
+    delay(_delay / 2);
+    setState(-100,0);
+    delay(_delay);
+    setState(0,0);
+    delay(_delay / 2);
+    setState(0,100);
+    delay(_delay);
+    setState(0,0);
+    delay(_delay / 2);
+    setState(0,-100);
+    delay(_delay);
+    setState(0,0);
+    delay(2 * _delay);
+    }
   
   int X, Y;
   X = map(analogRead(x_in), 0, 1024, -100, 100);
@@ -82,7 +116,7 @@ void loop() {
        for (int i = 0; i < 2; i++) { // Read Command Array Bytes
          cmd_buffer[i] = Serial.read();
        }
-       if (millis() - last_manual_cmd >= MANUAL2AUTO_DELAY * 100){
+       if (millis() - last_manual_cmd >= MANUAL2AUTO_DELAY * 1000){
        setState(map(cmd_buffer[0], 0, 127, -100, 100), map(cmd_buffer[1], 0,
        127, -100, 100));}
        } 
