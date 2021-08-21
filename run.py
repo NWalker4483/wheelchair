@@ -5,9 +5,6 @@ from detector import Detector
 from map_tools import QrMap
 import time
 import socket
-from driver import Driver
-import cv2
-from detector import Detector
 from threading import Thread
 from utils import UDPStream
 

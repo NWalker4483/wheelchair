@@ -6,19 +6,18 @@ from tf import Pose
 from math import pi, acos, atan
 import numpy as np
 import time
-from io import BytesIO
 from time import sleep
-from picamera import PiCamera
-from picamera.array import PiRGBArray
-from PIL import Image
 from imutils.video import VideoStream
-from imutils.video import FPS
-import argparse
 import imutils
+<<<<<<< HEAD
 import cv2
 from threading import Thread
 
 class Detector(Thread):
+=======
+
+class Detector():
+>>>>>>> 1cebb710682c2e3c0371d2f0612bed7ba09704a2
     def __init__(self, filename=None,debug=False):
         self.debug = debug
         super(Detector, self).__init__()

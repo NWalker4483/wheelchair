@@ -25,15 +25,16 @@ goal_update_topic = 'goal_update'
 
 joystick = pygame.joystick.Joystick(0)
 joystick.init()
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
     if joystick != None:
         lvalue = joystick.get_axis(1) # Flipped Linear
-        lvalue *= -100;
+        lvalue *= -100
         avalue = joystick.get_axis(0) # Flipped Angular
-        avalue *= 100;
+        avalue *= 100
         if (abs(avalue) > 3) or (abs(lvalue) > 3):
             publish(control_update_topic, f"{int(lvalue)}, {int(avalue)}")
             active = True
