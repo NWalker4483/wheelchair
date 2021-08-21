@@ -6,16 +6,10 @@ from tf import Pose
 from math import pi, acos, atan
 import numpy as np
 import time
-from io import BytesIO
 from time import sleep
-from picamera import PiCamera
-from picamera.array import PiRGBArray
-from PIL import Image
 from imutils.video import VideoStream
-from imutils.video import FPS
-import argparse
 import imutils
-import cv2
+
 class Detector():
     def __init__(self, filename=None,debug=False):
         self.debug = debug

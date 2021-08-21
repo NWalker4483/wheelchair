@@ -4,6 +4,9 @@ from detector import Detector
 from map_tools import QrMap 
 import time 
 import socket
+from driver import Driver
+import cv2
+from detector import Detector
 from threading import Thread
 
 class UDPStream(Thread):
@@ -101,10 +104,7 @@ try:
                             raise(e)
             
             elif topic == "e": # For Exit
-                running = False
-                    
-            
-                
+                running = False 
             if (len(current_path) > 0) or lost:
                 local_line_form, marker_id, local_marker_pose = detector.update()
                 

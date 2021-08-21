@@ -1,7 +1,7 @@
 import numpy as np
 import cv2 as cv
 import time
-from imutils.video import VideoStream, FileVideoStream
+from imutils.video import VideoStream
 import imutils
 import time
 
