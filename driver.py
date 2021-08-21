@@ -8,6 +8,7 @@ The driver class contains functions for controlling the arduino joystick
 and high-level operations like facing right, left, stopping etc.
 Once manual control is added back to also monitor the state of manual 
 input versus the automated control"""
+
 def translate(value, leftMin, leftMax, rightMin, rightMax):
     # Figure out how 'wide' each range is
     leftSpan = leftMax - leftMin
@@ -21,10 +22,13 @@ def translate(value, leftMin, leftMax, rightMin, rightMax):
  
 import cv2
 class Driver(): 
-    def __init__(self, port):
-        self.attach(port) 
+    def __init__(self, port = None):
+        self.attached = False
+        if port != None:
+            self.attach(port) 
         self.linear = 0 # Upper Servo 
         self.angular = 0  # Lower Servo -100 : 100 - Right : Left
+        
     
     def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):      
         raise(NotImplementedError)
@@ -78,6 +82,8 @@ class Driver():
 
     def attach(self, serial_port):
         self.ser = Serial(serial_port, 9600)
+        
+        self.attached = True
 
     def send_cmd(self, linear, angular):
         linear = linear if linear >= -100 else -100
@@ -85,6 +91,7 @@ class Driver():
         linear = linear if linear <= 100 else 100
         angular = angular if angular <= 100 else 100
         
+        linear = -linear
         self.linear, self.angular = linear, angular
 
         linear_cmd = int(translate(linear, -100, 100, 0, 127))
@@ -113,12 +120,12 @@ if __name__ == '__main__':
     drive = Driver('/dev/ttyACM0')
     try:
         while True:
-            for x,y in [(100,0),(-100,0),(0,100),(0,-100),(0,0)]:
-                drive.send_cmd(x, y)
-                time.sleep(1)
-            #for angle in range(0, 360, 1):
-            #    x, y = rotate((0,100), (0, 0), angle)
+            # for x,y in [(100,0),(-100,0),(0,100),(0,-100),(0,0)]:
             #    drive.send_cmd(x, y)
+            #   time.sleep(1)
+            for angle in range(0, 360, 1):
+                x, y = rotate((0,100), (0, 0), angle)
+                drive.send_cmd(x, y)
                 time.sleep(1/60)
     finally:
         drive.stop()

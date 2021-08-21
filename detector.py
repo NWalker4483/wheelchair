@@ -16,10 +16,13 @@ from imutils.video import FPS
 import argparse
 import imutils
 import cv2
-class Detector():
+from threading import Thread
+
+class Detector(Thread):
     def __init__(self, filename=None,debug=False):
         self.debug = debug
-        
+        super(Detector, self).__init__()
+        self.daemeon = True
         
         self.lower_hsv = np.array([32, 42, 0])
         self.upper_hsv = np.array([60, 182, 255])
@@ -37,7 +40,9 @@ class Detector():
         
         sleep(2)  # Warm Up camera
         self.update_views()
-        
+    def run(self):
+        while True:
+            self.update()
     def stop(self):
         self.camera_stream.stop()
         

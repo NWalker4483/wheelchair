@@ -4,9 +4,6 @@ import cv2
 from simple_pid import PID
 
 def main():
-    
-    
-    
     driver = Driver('/dev/ttyACM0')
     detector = Detector(debug=True)
     
@@ -17,12 +14,12 @@ def main():
     
     pid.output_limits = (-100, 100)  # Output will always be above 0, but with no upper bound
 
-    while True:
+    while True:c
         line_form, marker_id, _ = detector.update()
         if marker_id != None:
             if first_seen == -1:
                 first_seen = marker_id
-            if marker_id == 4:
+            if marker_id == 1:
                 print("Line Complete")
                 driver.stop()
                 break
