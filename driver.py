@@ -48,6 +48,7 @@ class Driver():
         pid.sample_time = 1/10 # 10 Hz
         pid.output_limits = (-100, 100)  # Output will always be above 0, but with no upper bound
         pid.error_map = lambda x: min_ang_dist(x,goal_rotations[direction]) 
+        
         while (abs(angle_error) > tolerance):
             if gap >= max_det_gap:
                 self.stop()

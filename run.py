@@ -17,6 +17,10 @@ import socket
 
 control_update_topic = 'c'
 goal_update_topic = 'g'
+idle_topic = 'i'
+Map = QrMap()
+
+planner = Planner(Map)
 driver = Driver()
 
 # Networking Code
@@ -32,17 +36,11 @@ sock.start()
 connected = False
 while not connected:
     try:
-        if not driver.attached:
-            for i in range(4):
-                try:
-                    driver.attach('/dev/ttyACM' + str(i))
-                    break
-                except Exception as e:
-                    print(e)
         sock.sock.bind((host, port))
         connected = True
     except Exception as e:
         print(e)
+        print("Failed to Connect 3 secodns")
         time.sleep(3)
 running = True
 
@@ -65,13 +63,6 @@ try:
         except Exception as e:
             print(e)
             try:
-                for i in range(4):
-                    try:
-                        driver.attach('/dev/ttyACM' + str(i))
-                        break
-                    except Exception as e:
-                        print(e)
-            
                 sock.sock.bind((host, port))
                 print("Reconnected")
             except Exception as e:

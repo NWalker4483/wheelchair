@@ -1,7 +1,7 @@
 from driver import Driver
 from detector import Detector
 import cv2
-driver = Driver('/dev/ttyACM0')
+driver = Driver()
 detector = Detector()
 first_seen = -1
 while True:

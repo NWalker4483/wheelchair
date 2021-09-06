@@ -26,37 +26,45 @@ def scale_from(x, y, res_1, res_2):
     x, y = int((x/res_1[0]) * res_2[0]
             ), int((y/res_1[1]) * res_2[1])
     return x, y
+
 class Detector(Thread):
     def __init__(self, debug=False):
         super(Detector, self).__init__()
         self.debug = debug
+        self.state_info = dict()
+
         ####### Image Masking
         self.lower_green = np.array([32, 42, 0])
         self.upper_green = np.array([60, 182, 255])
+
         ###### Motion Tracking 
         self.lk_params = dict(winSize  = (15, 15),
                 maxLevel = 2,
                 criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+        
         self.feature_params = dict( maxCorners = 500,
                     qualityLevel = 0.3,
                     minDistance = 7,
                     blockSize = 7)
-        # NEW
-        self.velocity_estimate = 0
+
+        self.sample_rate = 10 
         self.update_freq = 10 # Hz
         
-        self.odom = [0, 0, 0] # x, y, rot
         self.s_len = 2.5 # meters
-        self.pps = 680
+        #self.ppm_x = 680
+        #self.ppm_y = 680
+        self.state_info["true_center"] = self.true_center = (0,0)
 
-        ########
+        ###### Sensor Fusion
+        self.initialized = False
+        self.last_output = (-1, -1) # Set in initialization
+        
+        ######
         self.high_res_shape = None
         self.low_res_shape = None
         
         self.high_res_view = None
         self.low_res_view = None
-
-        self.state_info = dict()
 
         self.camera_stream = VideoStream(usePiCamera = False)
         #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
@@ -64,6 +72,7 @@ class Detector(Thread):
         
         time.sleep(2)  # Warm Up camera
         self.readCameraFeed()
+        self.state_info["last_time"] = time.time()
 
         self.daemeon = True
         self.__alive = True
@@ -80,7 +89,7 @@ class Detector(Thread):
     def getDebugView(self):
         frame = self.high_res_view
   
-        if all([i in self.state_info.get("marker", dict()) for i in ["pose","id","polygon"]]):
+        if "marker" in self.state_info:
             polygon = self.state_info["marker"]["polygon"]
             pose = self.state_info["marker"]["pose"]
             ID = self.state_info["marker"]["id"]
@@ -118,9 +127,13 @@ class Detector(Thread):
       
                 frame = cv2.circle(
                     frame, (x, y), 2, (0, 0, 255), 7)
+
         if "current_tracks" in self.state_info:
             cv2.polylines(frame, [np.int32(list(map(lambda p: scale_from(p[0], p[1], self.low_res_shape, self.high_res_shape), tr))) for tr in self.state_info["current_tracks"]], False, (0, 255, 0))
-                
+        
+        if "current_vel" in self.state_info:
+            pass   
+
         if "line" in self.state_info:
             m, b = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
             offset = abs(b) * (self.high_res_shape[1] // 2)
@@ -139,15 +152,12 @@ class Detector(Thread):
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
  
         if "zones" in self.state_info:
-            
             for p1, p2, is_green  in self.state_info["zones"]:
                 x, y = scale_from(p1[0], p1[1], self.low_res_shape, self.high_res_shape)
                 p1 = (x,y)
                 
-                x,y = p2
-                x, y = int((x/self.low_res_shape[1]) * self.high_res_shape[1]
-                           ), int((y/self.low_res_shape[0]) * self.high_res_shape[0])
-                p2 = (x,y )
+                x, y = scale_from(p2[0], p2[1], self.low_res_shape, self.high_res_shape)
+                p2 = (x,y)
                 frame = cv2.rectangle(frame, p1, p2, color = (0,255,0) if is_green else (0,0,255), thickness = -1)
             
             x,y = self.state_info["center"]
@@ -157,6 +167,10 @@ class Detector(Thread):
             frame = cv2.circle(
                 frame, p, 6, (255, 0, 0), 2)
         
+        if "true_center" in self.state_info:
+            p0 = self.state_info["true_center"]
+            cv2.circle(
+                frame, p0, 6, (255, 0, 0), 10)
         # Draw Center Line
         frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
             
@@ -177,7 +191,7 @@ class Detector(Thread):
         # Separate the image into patches 
         patch_height = 50 #px
         patch_width = 25 #px
-        sample_cnt = 5
+        sample_cnt = 5 # * WARNING This value is squared 
 
         # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
         Y_, X_ = np.mgrid[0:mask.shape[0]:patch_height, 0:mask.shape[1]:patch_width]
@@ -210,52 +224,6 @@ class Detector(Thread):
             self.state_info["line"] = dict()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = m, b
 
-    def estimateBiasOnly(self):
-        frame = self.low_res_view
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.lower_green, self.upper_green)
-        
-        start = 0
-        stop = 0
-        zones = [] # ((x1,y1),(), bool)
-        for stop in np.linspace(0, frame.shape[1], 25):
-            stop = int(stop) 
-            p1 = (start,int(mask.shape[0] * (1 - .15)) - 50)
-            p2 = (stop, mask.shape[0] - 50)
-            crop = mask[p1[1]:p2[1], p1[0]: p2[0]]
-            val = np.sum(crop > 125) > (crop.shape[0]*crop.shape[1]) * .8
-            
-            if 30 > start or start > 180:
-                val = False
-            start = stop
-            
-            zones.append((p1, p2, val))
-            
-        self.state_info["zones"] = zones
-        start = 0
-        stop = 0
-        curr_start = 0
-        best_val = 0
-        curr_val = 0
-        for i, zone in enumerate(self.state_info["zones"] + [((None),(None),False)]):
-            p1, p2, is_green = zone
-            if is_green:
-                if curr_val == 0:
-                    curr_start = i
-                curr_val += 1
-            elif curr_val > best_val:
-                stop = i - 1
-                start = curr_start
-                best_val = curr_val
-            else:
-                curr_val = 0
-        start, stop = self.state_info["zones"][start],self.state_info["zones"][stop]
-        a, _, _ = start
-        _, b, _ = stop
-        p = (a[0] + ((b[0] - a[0]) //2), a[1] + ((b[1] - a[1]) // 2))
-        
-        self.state_info["center"] = p
-
     def estimateVelocity(self):
         frame = self.low_res_view
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -265,8 +233,8 @@ class Detector(Thread):
             p_c = np.float32([tr[-1] for tr in self.state_info.get("current_tracks")]).reshape(-1, 1, 2)
             p_f, _st, _err = cv2.calcOpticalFlowPyrLK(img0, img1, p_c, None, **self.lk_params)
             p_r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p_f, None, **self.lk_params)
-            d = abs(p_c - p_r).reshape(-1, 2).max(-1)
-            good = d < 1
+            drift = abs(p_c - p_r).reshape(-1, 2).max(-1)
+            good = drift < 1
             new_tracks = []
             for tr, (x, y), good_flag in zip(self.state_info["current_tracks"], p_f.reshape(-1, 2), good):
                 if not good_flag:
@@ -275,26 +243,61 @@ class Detector(Thread):
                 if len(tr) > 10:
                     del tr[0] # PopLeft
                 new_tracks.append(tr)
-            if len(new_tracks) > 3:
+
+            if len(new_tracks) > 5: # Do Good Feautures Remain if not trigger 
                 self.state_info["current_tracks"] = new_tracks
+                track_cnt = len(self.state_info.get("current_tracks",[]))
+            
+                self.state_info["velocity"] = dict()
+
+                # Estimate Velocity From Tracks 
+                self.state_info["velocity"]["x"] = 0
+                self.state_info["velocity"]["y"] = 0
+                self.state_info["velocity"]["rot"] = 0
+
+                avg_delta_x = 0
+                avg_delta_y = 0
+                avg_delta_r = 0 
+                
+                for track in self.state_info.get("current_tracks", []): 
+                    track = np.array(track)
+                    # Shift The Plane of tracked point Away from the pixel 
+                    # Origin and toward the center of rotation for the robot
+                    # So that rotation can be calculated
+                    track -= self.true_center 
+
+                    track_deltas = track[1:] - track[:-1]
+                    d_x, d_y = np.mean(track_deltas, 0)
+
+                    track_delta_rads = []
+
+                    for vector_1, vector_2 in zip(track[1:],track[:-1]):
+                        unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
+                        unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
+                        dot_product = np.dot(unit_vector_1, unit_vector_2)
+                        angle = np.arccos(dot_product)
+                        track_delta_rads.append(angle)
+
+                    avg_delta_x += (d_x/1)
+                    avg_delta_y += (d_y/1)
+                    avg_delta_r += (np.mean(track_delta_rads)/1)
+
+                self.state_info["velocity"]["x"] = avg_delta_x / track_cnt # d_t
+                self.state_info["velocity"]["y"] = avg_delta_y / track_cnt
+                self.state_info["velocity"]["rot"] = avg_delta_y / track_cnt
             else:
                 del self.state_info["current_tracks"]
-          
-            self.state_info["last_gray"] = gray
-        
-            if len(self.state_info.get("current_tracks")) > 9:
-                pass
 
         mask = np.zeros_like(gray)
         mask[:] = 255
-
+            
         if self.state_info.get("current_tracks"):
             # Mark latest position in each track as an roi for features to track 
             for x, y in [np.int32(tr[-1]) for tr in self.state_info.get("current_tracks")]:
                 cv2.circle(mask, (x, y), 5, 0, -1)
         else:
             self.state_info["current_tracks"] = [ ]
-
+        # TODO: I dont need this every frame
         p = cv2.goodFeaturesToTrack(gray, mask = mask, **self.feature_params)
         if p is not None: # New feature Positions
             for x, y in np.float32(p).reshape(-1, 2):
@@ -312,23 +315,33 @@ class Detector(Thread):
         self.low_res_shape = frame.shape
         self.low_res_view = frame
     
+    def fuseMeasurements(self):
+        m, b = self.state_info["line_last"]
+
+        self.state_info["line_fused"] = dict()# ["slope"]
+        
+        
+        self.state_info["time_last"] = self.state_info["time"]
+        self.state_info["line_last"] = self.state_info["line"]
+
     def update(self):
         self.readCameraFeed()
         self.checkForMarker()
 
-        if self.state_info.get("marker"):
+        self.estimateVelocity()
+
+        if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = QrPose2LineForm(self.state_info["marker"]["pose"], self.high_res_shape)
         else:
             self.estimateLineForm()
-        self.estimateVelocity()
-        if False:
-            self.estimateBiasOnly()
+            #self.fuseMeasurements()
 
         if self.debug:
             cv2.imshow("Debug", self.getDebugView())
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 pass
+        self.state_info["last_time"] = time.time()
 
     def checkForMarker(self):
         if "marker" in self.state_info:
@@ -356,7 +369,7 @@ class Detector(Thread):
                 self.state_info["marker"]["id"] = int(marker.data)
             except ValueError as ve:
                 self.state_info["marker"]["id"] = 0
-                print("Invalid code read defaulting to id = 0 for DEV")
+                print("WARN: Invalid QR CODE READ: Defaulting to id = 0 for development")
             
             p1 = marker.polygon[0]  # Upper Right
             p2 = marker.polygon[1]  # Lower Right
@@ -374,7 +387,6 @@ class Detector(Thread):
                 rot = 180 + (180 - rot)
             self.state_info["marker"]["pose"] = Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
             
-
 if __name__ == '__main__':
     det = Detector(debug = True)
     try:
