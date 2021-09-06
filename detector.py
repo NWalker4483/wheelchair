@@ -1,57 +1,89 @@
-from __future__ import print_function
-import time
-import cv2
-from pyzbar.pyzbar import decode
-from tf import Pose
-from math import pi, acos, atan
-import numpy as np
-import time
-from time import sleep
 from imutils.video import VideoStream
-import imutils
-<<<<<<< HEAD
-import cv2
+from pyzbar.pyzbar import decode
 from threading import Thread
+from math import pi, acos, atan
+from tf import Pose
+import numpy as np
+import imutils
+import time
+import cv2
 
+def QrPose2LineForm(pose, high_res_shape):
+    angle = pose.rot
+    angle -= 180 if angle > 180 else 0
+    
+    min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
+    
+    base = min([0, 90, 180, 270], key = lambda x: abs(min_ang_dist(angle, x)))
+    angle = -min_ang_dist(angle, base) 
+    slope = atan(angle * (3.14/180))
+
+    bias = pose.x - (slope * pose.y)
+    bias = (bias - (high_res_shape[1] // 2)) / (high_res_shape[1]//2)
+    return slope, bias
+
+def scale_from(x, y, res_1, res_2):
+    x, y = int((x/res_1[0]) * res_2[0]
+            ), int((y/res_1[1]) * res_2[1])
+    return x, y
 class Detector(Thread):
-=======
-
-class Detector():
->>>>>>> 1cebb710682c2e3c0371d2f0612bed7ba09704a2
-    def __init__(self, filename=None,debug=False):
-        self.debug = debug
+    def __init__(self, debug=False):
         super(Detector, self).__init__()
-        self.daemeon = True
+        self.debug = debug
+        ####### Image Masking
+        self.lower_green = np.array([32, 42, 0])
+        self.upper_green = np.array([60, 182, 255])
+        ###### Motion Tracking 
+        self.lk_params = dict(winSize  = (15, 15),
+                maxLevel = 2,
+                criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+        self.feature_params = dict( maxCorners = 500,
+                    qualityLevel = 0.3,
+                    minDistance = 7,
+                    blockSize = 7)
+        # NEW
+        self.velocity_estimate = 0
+        self.update_freq = 10 # Hz
         
-        self.lower_hsv = np.array([32, 42, 0])
-        self.upper_hsv = np.array([60, 182, 255])
-        self.high_res = (640, 480)
-        self.low_res = (640, 480)
+        self.odom = [0, 0, 0] # x, y, rot
+        self.s_len = 2.5 # meters
+        self.pps = 680
+
+        ########
+        self.high_res_shape = None
+        self.low_res_shape = None
         
         self.high_res_view = None
         self.low_res_view = None
 
-        self.debug_info = dict()
+        self.state_info = dict()
 
-        self.camera_stream = VideoStream(usePiCamera = True)
-        self.camera_stream.stream.camera.shutter_speed = 2000 # Drop to reduce Motion Blur
+        self.camera_stream = VideoStream(usePiCamera = False)
+        #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
         self.camera_stream.start()
         
-        sleep(2)  # Warm Up camera
-        self.update_views()
+        time.sleep(2)  # Warm Up camera
+        self.readCameraFeed()
+
+        self.daemeon = True
+        self.__alive = True
+        # self.start()
+
     def run(self):
-        while True:
+        while self.__alive:
             self.update()
+
     def stop(self):
-        self.camera_stream.stop()
-        
+        self.__alive = False
+        self.camera_stream.stop()      
+
     def getDebugView(self):
         frame = self.high_res_view
   
-        if all([i in self.debug_info.get("marker", dict()) for i in ["pose","id","polygon"]]):
-            polygon = self.debug_info["marker"]["polygon"]
-            pose = self.debug_info["marker"]["pose"]
-            ID = self.debug_info["marker"]["id"]
+        if all([i in self.state_info.get("marker", dict()) for i in ["pose","id","polygon"]]):
+            polygon = self.state_info["marker"]["polygon"]
+            pose = self.state_info["marker"]["pose"]
+            ID = self.state_info["marker"]["id"]
             
             # Draw QR Code corners
             frame = cv2.circle(
@@ -74,104 +106,114 @@ class Detector():
             frame = cv2.putText(frame, str(ID), org, font, fontScale,
                                 color, 5, cv2.LINE_AA, False)
 
-        if "mask_points" in self.debug_info:
-            for x, y in self.debug_info["mask_points"]:
-                x, y = int((x/self.low_res[0]) * self.high_res[0]
-                           ), int((y/self.low_res[1]) * self.high_res[1])
+        if "mask_points" in self.state_info:
+            for x, y in self.state_info["mask_points"]:
+                x, y = scale_from(x, y, self.low_res_shape, self.high_res_shape)
                 frame = cv2.circle(
-                    frame, (int(x) , int(y)), 2, (165, 0, 55), 2)
+                    frame, (x , y), 2, (165, 0, 55), 2)
 
-        if "line_points" in self.debug_info:
-            for x, y in self.debug_info["line_points"]:
-                x, y = int((x/self.low_res[1]) * self.high_res[1]
-                           ), int((y/self.low_res[0]) * self.high_res[0])
-              
+        if "line_points" in self.state_info:
+            for x, y in self.state_info["line_points"]:
+                x, y = scale_from(x, y, self.low_res_shape,self.high_res_shape)
+      
                 frame = cv2.circle(
-                    frame, (int(x), int(y)), 2, (0, 0, 255), 7)
-        if "line" in self.debug_info:
-            m, b = self.debug_info["line"]["slope"],self.debug_info["line"]["bias"]
-            offset = abs(b) * (self.high_res[1] // 2)
+                    frame, (x, y), 2, (0, 0, 255), 7)
+        if "current_tracks" in self.state_info:
+            cv2.polylines(frame, [np.int32(list(map(lambda p: scale_from(p[0], p[1], self.low_res_shape, self.high_res_shape), tr))) for tr in self.state_info["current_tracks"]], False, (0, 255, 0))
+                
+        if "line" in self.state_info:
+            m, b = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
+            offset = abs(b) * (self.high_res_shape[1] // 2)
             b = offset if b > 0 else -offset
-            b += (self.high_res[1] // 2)
+            b += (self.high_res_shape[1] // 2)
             
             # Calculate Start and stop
             p1 = (int(b),0)
-            p2 = (int(m*self.high_res[1] + b), self.high_res[1])
+            p2 = (int(m * self.high_res_shape[1] + b), self.high_res_shape[1])
             
             bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
             
             frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
             
-            frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
-            
+
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
-        if "zones" in self.debug_info:
+ 
+        if "zones" in self.state_info:
             
-            for p1, p2, is_green  in self.debug_info["zones"]:
-                x,y = p1
-                x, y = int((x/self.low_res[1]) * self.high_res[1]
-                           ), int((y/self.low_res[0]) * self.high_res[0])
-                p1 = (x,y )
+            for p1, p2, is_green  in self.state_info["zones"]:
+                x, y = scale_from(p1[0], p1[1], self.low_res_shape, self.high_res_shape)
+                p1 = (x,y)
                 
                 x,y = p2
-                x, y = int((x/self.low_res[1]) * self.high_res[1]
-                           ), int((y/self.low_res[0]) * self.high_res[0])
+                x, y = int((x/self.low_res_shape[1]) * self.high_res_shape[1]
+                           ), int((y/self.low_res_shape[0]) * self.high_res_shape[0])
                 p2 = (x,y )
                 frame = cv2.rectangle(frame, p1, p2, color = (0,255,0) if is_green else (0,0,255), thickness = -1)
             
-            x,y = self.debug_info["center"]
-            x, y = int((x/self.low_res[1]) * self.high_res[1]
-                           ), int((y/self.low_res[0]) * self.high_res[0])
+            x,y = self.state_info["center"]
+            x, y = int((x/self.low_res_shape[1]) * self.high_res_shape[1]
+                           ), int((y/self.low_res_shape[0]) * self.high_res_shape[0])
             p = (x,y )
             frame = cv2.circle(
                 frame, p, 6, (255, 0, 0), 2)
+        
+        # Draw Center Line
+        frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
+            
         return frame
 
-    def update_views(self):
-        frame = self.camera_stream.read()
-        frame = imutils.resize(frame, width=450)
-        self.high_res = frame.shape
-        self.high_res_view = frame
-        
-        frame = imutils.resize(frame, width=200)
-        self.low_res = frame.shape
-        self.low_res_view = frame
-        
-        
-    def update(self):
-        self.update_views()
-        marker_id, marker_pose = self.checkForMarker()
-        
-        if type(marker_pose) != type(None):
-            angle = marker_pose.rot
-            angle -= 180 if angle > 180 else 0
-            
-            min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
-            
-            base = min([0, 90, 180, 270], key = lambda x: abs(min_ang_dist(angle, x)))
-            angle = -min_ang_dist(angle, base) 
-            slope = atan(angle * (3.14/180))
-            
-            self.debug_info["line"] = dict()
-            self.debug_info["line"]["slope"] = slope
-            bias = marker_pose.x - (slope * marker_pose.y)
-            self.debug_info["line"]["bias"] = (bias - (self.high_res_view.shape[1] // 2)) / (self.high_res_view.shape[1]//2)
-            guide_pose = (self.debug_info["line"]["slope"], self.debug_info["line"]["bias"]) 
-        else:
-            guide_pose = self.getGuideLinePosition()
-        self.checkZones()
-        if self.debug:
-            cv2.imshow("Debug", self.getDebugView())
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                pass
-        return guide_pose, marker_id, marker_pose
-    
-    def checkZones(self):
-
+    def estimateLineForm(self, bias_only = False):
+        if "line" in self.state_info:
+            del self.state_info["line"]
+        # Returns an estimate of the lines slope and Bias relative to the front of the camera frame
         frame = self.low_res_view
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.lower_hsv, self.upper_hsv)
+        mask = cv2.inRange(hsv, self.lower_green, self.upper_green)
+        
+        pnts = []
+        avg_points = []
+        mask_points = []
+        # Separate the image into patches 
+        patch_height = 50 #px
+        patch_width = 25 #px
+        sample_cnt = 5
+
+        # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
+        Y_, X_ = np.mgrid[0:mask.shape[0]:patch_height, 0:mask.shape[1]:patch_width]
+        # patch_positions = zip(*np.vstack([X_.ravel(), Y_.ravel()]))
+        
+        y_, x_ = np.mgrid[0:patch_height:patch_height//sample_cnt, 0:patch_width:patch_width//sample_cnt]
+        # sample_positions = zip(*np.vstack([x_.ravel(), y_.ravel()]))
+
+        for X, Y in zip(*np.vstack([X_.ravel(), Y_.ravel()])):
+            vals = []
+            for x, y in zip(*np.vstack([x_.ravel(), y_.ravel()])):
+                if Y+y >= mask.shape[0] or X+x >= mask.shape[1]:
+                    break
+                if mask[Y+y][X+x] == 255:
+                    vals.append([X+x, Y+y])
+            if len(vals) > 3:
+                pnts.append(np.mean(vals, axis=0))
+            mask_points += vals
+        avg_points += pnts
+
+        self.state_info["mask_points"] = mask_points
+        self.state_info["line_points"] = avg_points
+
+        if len(avg_points) > 3:
+            avg_points = np.array(avg_points)
+            m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
+            b -= mask.shape[1]//2
+            b /= mask.shape[1]//2
+
+            self.state_info["line"] = dict()
+            self.state_info["line"]["slope"], self.state_info["line"]["bias"] = m, b
+
+    def estimateBiasOnly(self):
+        frame = self.low_res_view
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, self.lower_green, self.upper_green)
         
         start = 0
         stop = 0
@@ -189,13 +231,13 @@ class Detector():
             
             zones.append((p1, p2, val))
             
-        self.debug_info["zones"] = zones
+        self.state_info["zones"] = zones
         start = 0
         stop = 0
         curr_start = 0
         best_val = 0
         curr_val = 0
-        for i, zone in enumerate(self.debug_info["zones"] + [((None),(None),False)]):
+        for i, zone in enumerate(self.state_info["zones"] + [((None),(None),False)]):
             p1, p2, is_green = zone
             if is_green:
                 if curr_val == 0:
@@ -207,52 +249,90 @@ class Detector():
                 best_val = curr_val
             else:
                 curr_val = 0
-        start, stop = self.debug_info["zones"][start],self.debug_info["zones"][stop]
+        start, stop = self.state_info["zones"][start],self.state_info["zones"][stop]
         a, _, _ = start
         _, b, _ = stop
         p = (a[0] + ((b[0] - a[0]) //2), a[1] + ((b[1] - a[1]) // 2))
         
-        self.debug_info["center"] = p
-            
-        
-    def getGuideLinePosition(self):
+        self.state_info["center"] = p
 
+    def estimateVelocity(self):
         frame = self.low_res_view
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.lower_hsv, self.upper_hsv)
-        pnts = []
-        avg_points = []
-        mask_points = []
-        # Separate the image into strips of height 20
-        for y in range(0, mask.shape[0], 20):
-            vals = []
-            for i in range(0, 15, 5):  # Sample each of the strips four times
-                for x in range(0, mask.shape[1], 5):
-                    if mask[y][x] > 125:
-                        #if x > int(.1 * self.low_res[0]) and x < int(.8 * self.low_res[0]):
-                        vals.append([x, y + i])
-            if len(vals) > 0:
-                pnts.append(np.mean(vals, axis=0))
-            mask_points += vals
-        avg_points += pnts
+        if self.state_info.get("current_tracks"):
+            img0, img1 = self.state_info["last_gray"], gray
+            p_c = np.float32([tr[-1] for tr in self.state_info.get("current_tracks")]).reshape(-1, 1, 2)
+            p_f, _st, _err = cv2.calcOpticalFlowPyrLK(img0, img1, p_c, None, **self.lk_params)
+            p_r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p_f, None, **self.lk_params)
+            d = abs(p_c - p_r).reshape(-1, 2).max(-1)
+            good = d < 1
+            new_tracks = []
+            for tr, (x, y), good_flag in zip(self.state_info["current_tracks"], p_f.reshape(-1, 2), good):
+                if not good_flag:
+                    continue
+                tr.append((x, y))
+                if len(tr) > 10:
+                    del tr[0] # PopLeft
+                new_tracks.append(tr)
+            if len(new_tracks) > 3:
+                self.state_info["current_tracks"] = new_tracks
+            else:
+                del self.state_info["current_tracks"]
+          
+            self.state_info["last_gray"] = gray
+        
+            if len(self.state_info.get("current_tracks")) > 9:
+                pass
 
-        mask_points = np.array(mask_points)
-        avg_points = np.array(avg_points)
+        mask = np.zeros_like(gray)
+        mask[:] = 255
 
-        self.debug_info["mask_points"] = mask_points
-        self.debug_info["line_points"] = avg_points
-        if len(avg_points) > 3:
-            m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
-            b -= frame.shape[1]//2
-            b /= frame.shape[1]//2
+        if self.state_info.get("current_tracks"):
+            # Mark latest position in each track as an roi for features to track 
+            for x, y in [np.int32(tr[-1]) for tr in self.state_info.get("current_tracks")]:
+                cv2.circle(mask, (x, y), 5, 0, -1)
         else:
-            m, b = 0, 0 
-        self.debug_info["line"] = dict()
-        self.debug_info["line"]["slope"], self.debug_info["line"]["bias"] = m, b
-        return (m, b)
+            self.state_info["current_tracks"] = [ ]
+
+        p = cv2.goodFeaturesToTrack(gray, mask = mask, **self.feature_params)
+        if p is not None: # New feature Positions
+            for x, y in np.float32(p).reshape(-1, 2):
+                self.state_info["current_tracks"].append([(x, y)])
+        
+        self.state_info["last_gray"] = gray
+        
+    def readCameraFeed(self):
+        frame = self.camera_stream.read()
+        frame = imutils.resize(frame, width=450)
+        self.high_res_shape = frame.shape
+        self.high_res_view = frame
+        
+        frame = imutils.resize(frame, width=200)
+        self.low_res_shape = frame.shape
+        self.low_res_view = frame
+    
+    def update(self):
+        self.readCameraFeed()
+        self.checkForMarker()
+
+        if self.state_info.get("marker"):
+            self.state_info["line"] = dict()
+            self.state_info["line"]["slope"], self.state_info["line"]["bias"] = QrPose2LineForm(self.state_info["marker"]["pose"], self.high_res_shape)
+        else:
+            self.estimateLineForm()
+        self.estimateVelocity()
+        if False:
+            self.estimateBiasOnly()
+
+        if self.debug:
+            cv2.imshow("Debug", self.getDebugView())
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                pass
 
     def checkForMarker(self):
+        if "marker" in self.state_info:
+            del self.state_info["marker"]
         """find the two left side corners of a QR marker and return it to pose and ID"""
         def sss(d, e, f):
             """ This function solves the triangle and returns (d,e,f,D,E,F) """
@@ -270,9 +350,13 @@ class Detector():
         barcodes = decode(frame)
         marker = next(filter(lambda code: code.type == "QRCODE", barcodes), None)
         if marker != None:
-            self.debug_info["marker"] = dict()
-            self.debug_info["marker"]["id"] = int(marker.data)
-            self.debug_info["marker"]["polygon"] = marker.polygon
+            try:
+                self.state_info["marker"] = dict()
+                self.state_info["marker"]["polygon"] = marker.polygon
+                self.state_info["marker"]["id"] = int(marker.data)
+            except ValueError as ve:
+                self.state_info["marker"]["id"] = 0
+                print("Invalid code read defaulting to id = 0 for DEV")
             
             p1 = marker.polygon[0]  # Upper Right
             p2 = marker.polygon[1]  # Lower Right
@@ -288,17 +372,10 @@ class Detector():
             
             if p1.y > p2.y:  # Flip Quadrant if upside down
                 rot = 180 + (180 - rot)
-                
-            self.debug_info["marker"]["pose"] = Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
+            self.state_info["marker"]["pose"] = Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
             
-            return self.debug_info["marker"]["id"], self.debug_info["marker"]["pose"]
-        else:
-            if "marker" in self.debug_info:
-                del self.debug_info["marker"]
-            return None, None
 
 if __name__ == '__main__':
-    import time
     det = Detector(debug = True)
     try:
         while True:  # loop over the frames from the video stream

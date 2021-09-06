@@ -22,7 +22,7 @@ def publish(topic, data):
     sock.sendto(cmd_str.encode("utf-8"), (UDP_IP, UDP_PORT))
 
 
-control_update_topic = 'j'
+control_update_topic = 'c'
 goal_update_topic = 'g'
 
 symbols = ["\\","|","/","<-","*","->","/","|","\\"]

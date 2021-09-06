@@ -1,44 +1,28 @@
-import serial
-from serial import Serial
 import time
-from detector import Detector
 from simple_pid import PID
+from gpiozero import Servo
+import numpy as np
+
+# For Visual Feedback 
+from detector import Detector
+
 """
-The driver class contains functions for controlling the arduino joystick 
+The driver class contains functions for controlling the joystick 
 and high-level operations like facing right, left, stopping etc.
 Once manual control is added back to also monitor the state of manual 
-input versus the automated control"""
+input versus the automated control
+"""
 
-def translate(value, leftMin, leftMax, rightMin, rightMax):
-    # Figure out how 'wide' each range is
-    leftSpan = leftMax - leftMin
-    rightSpan = rightMax - rightMin
+def face_towards():
+    pass
 
-    # Convert the left range into a 0-1 range (float)
-    valueScaled = float(value - leftMin) / float(leftSpan)
-
-    # Convert the 0-1 range into a value in the right range.
-    return rightMin + (valueScaled * rightSpan)
- 
-import cv2
 class Driver(): 
-    def __init__(self, port = None):
-        self.attached = False
-        if port != None:
-            self.attach(port) 
+    def __init__(self):
+        self.linear_servo = Servo(8, min_pulse_width = 1, max_pulse_width = 2)
+        self.angular_servo = Servo(10, min_pulse_width = 1, max_pulse_width = 2)
+
         self.linear = 0 # Upper Servo 
         self.angular = 0  # Lower Servo -100 : 100 - Right : Left
-        
-    
-    def adjust_to_line(self, m, b, delta_time = 0, drive_speed = 70):      
-        raise(NotImplementedError)
-        # TODO: try decision trees
-        if abs(b) <= .65:
-            cmd = (abs(b) * 100) + (abs(m) * 85)
-            cmd = cmd if m >= 0 else -cmd
-        else:
-            cmd = b * 150
-        self.send_cmd(drive_speed, cmd)
         
     def face(self, direction, detector, ID, tolerance = 3, max_det_gap = 200):
         """
@@ -57,7 +41,6 @@ class Driver():
 
         goal_rotations = {0: 270, 1: 90, 2: 180, 3: 0}
         gap = 0
-        turn_val = 0
         min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
         angle_error = 10e5
         pid = PID(.125, .125, .25)
@@ -80,31 +63,20 @@ class Driver():
             else:
                 gap += 1
 
-    def attach(self, serial_port):
-        self.ser = Serial(serial_port, 9600)
-        
-        self.attached = True
-
     def send_cmd(self, linear, angular):
-        linear = linear if linear >= -100 else -100
-        angular = angular if angular >= -100 else -100
-        linear = linear if linear <= 100 else 100
-        angular = angular if angular <= 100 else 100
+        constrain = lambda x, min_, max_: min_ if x < min_ else (max_ if x > max_ else x)        
+        self.linear, self.angular = constrain(linear, -1, 1), constrain(angular, -1, 1)
         
-        linear = -linear
-        self.linear, self.angular = linear, angular
-
-        linear_cmd = int(translate(linear, -100, 100, 0, 127))
-        angular_cmd = int(translate(angular, -100, 100, 0, 127))
-        
-        values = [ord('#'), linear_cmd, angular_cmd]
-        self.ser.write(bytearray(values))
-
+        self.linear_servo = Servo(8, min_pulse_width = 1, max_pulse_width = 2)
+        self.angular_servo = Servo(10, min_pulse_width = 1, max_pulse_width = 2)
+ 
+    def send_speed(self, x, y):
+        pass
+    
     def stop(self):
         self.send_cmd(0, 0)
+
 if __name__ == '__main__':
-    import numpy as np
-    import math
 
     def rotate(point, origin, degrees):
         radians = np.deg2rad(degrees)

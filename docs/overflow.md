@@ -1,1 +1,0 @@
-https://picamera.readthedocs.io/en/release-1.10/fov.html

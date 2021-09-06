@@ -3,7 +3,6 @@ from __future__ import print_function
 import numpy as np
 import cv2 as cv
 from detector import Detector
-from driver import Driver
 from simple_pid import PID
 
 lk_params = dict(winSize  = (15, 15),
@@ -16,11 +15,10 @@ feature_params = dict( maxCorners = 500,
                        blockSize = 7)
 
 class PID_Driver():
-    def __init__(self, detector, driver, debug = False):
+    def __init__(self, detector, debug = False):
         self.track_len = 20
         self.detector = detector
-        self.driver = driver
-        self.detect_interval = 5
+        self.detect_interval = 1
         self.tracks = []
         self.frame_idx = 0
         self.debug = debug
@@ -65,6 +63,9 @@ class PID_Driver():
                         del tr[0] # PopLeft
                     new_tracks.append(tr)
                     cv.circle(vis, (int(x), int(y)), 2, (0, 255, 0), -1)
+                
+                
+                
                 self.tracks = new_tracks
                 
                 if  len(self.tracks) > 5:    
@@ -111,9 +112,9 @@ class PID_Driver():
                     break
 
 def main():
-    det = Detector(debug=True)
+    det = Detector(debug=False)
     det.start()
-    a =  PID_Driver(det, Driver('/dev/ttyACM0'), debug = True)
+    a =  PID_Driver(det, debug = True)
     try:
         a.run()
     except Exception as e:

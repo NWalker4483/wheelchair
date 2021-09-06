@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
+
 # Base Controller Script
-from driver import Driver
-from detector import Detector
-from map_tools import QrMap
-import time
-import socket
-from threading import Thread
+# The One Script that runs automatically on startup 
+# During development phase this will control just the driver but in the 
+# final implementation this will launch both planning and driver code
+
 from utils import UDPStream
 
-control_update_topic = 'j'
+from driver import Driver
+from detector import Detector
+from planner import Planner
+from map_tools import QrMap
+
+import time
+import socket
+
+control_update_topic = 'c'
+goal_update_topic = 'g'
 driver = Driver()
 
 # Networking Code
@@ -20,6 +28,7 @@ _sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 sock = UDPStream(_sock)
 sock.start()
+
 connected = False
 while not connected:
     try:
@@ -50,6 +59,9 @@ try:
             
             if topic == control_update_topic:
                 driver.send_cmd(*[int(i) for i in data.split(",")])
+            elif topic == goal_update_topic:
+                f = 0 
+            
         except Exception as e:
             print(e)
             try:
