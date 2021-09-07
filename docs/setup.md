@@ -8,7 +8,10 @@ The wheelchair is built in python and the
 ### Dependancies
 
 #### Raspian
-All python dependencies are managed by pipenv. Once you've downloaded the git repository onto both the host and wheelchair devices run ```pipenv install``` while inside the repo to install the required modules.
+
+All python dependencies are managed by pipenv. You can follow the installation instructions [here](https://pipenv.pypa.io/en/latest/install/). Once you've downloaded the git repository onto both the host and wheelchair devices run ```pipenv install``` while inside the repo to install the required modules.
+In order to fix a downstream packaging issue will need to install another dependency ```sudo apt-get install libatlas-base-dev```. Also you may need to uninstall and reinstall pyserial it's a normal issue but not one I found a cause for.
+
 
 ### Networing
 You'll need to reserve an IP address for the base station you'll be using and for the wheelchair.
@@ -25,6 +28,7 @@ For convenience the run that by file is launched automatically when the computer
 In order to set this up you'll need to create a systemd service
 
 https://unix.stackexchange.com/questions/455261/how-to-set-environmental-variable-in-systemd-service
+
 
 ### Navigation
 

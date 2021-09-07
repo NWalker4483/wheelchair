@@ -28,25 +28,6 @@ def scale_from(x, y, res_1, res_2):
             ), int((y/res_1[1]) * res_2[1])
     return x, y
 
-class ComplementaryFilter():
-    def __init__(self, weights = [.2,.8], sample_rates = [10, 20]):
-        assert(sum(weights) == 1)
-        self.weights = weights
-        self.sample_rates = sample_rates
-        self.__last_samples = [0 for _ in range(len(sample_rates))]
-        self.__value = None
-
-    def reset(self, value):
-        self.__value = value
-
-    def update(self, *values):
-        high, low = values
-        # curr_time = time.time()
-        for i, (sample_rate, sample_time, values) in enumerate(self.sample_rates, self.__last_samples, values):
-            pass
-        
-        return values[0] 
-
 class Detector(Thread):
     def __init__(self, debug=False):
         super(Detector, self).__init__()
@@ -77,7 +58,8 @@ class Detector(Thread):
         self.feature_params = dict( maxCorners = 500,
                     qualityLevel = 0.3,
                     minDistance = 7,
-                    blockSize = 7)        self.state_info["velocity"] = dict()
+                    blockSize = 7)        
+        self.state_info["velocity"] = dict()
         self.state_info["velocity"]["px"] = 0
         self.state_info["velocity"]["py"] = 0
         self.state_info["velocity"]["r"] = 0
@@ -103,8 +85,8 @@ class Detector(Thread):
         self.high_res_view = None
         self.low_res_view = None
 
-        self.camera_stream = VideoStream(usePiCamera = True)
-        self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
+        self.camera_stream = VideoStream(usePiCamera = False)
+        # self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
         self.camera_stream.start()
         
         time.sleep(2)  # Warm Up camera
@@ -193,14 +175,16 @@ class Detector(Thread):
                 frame,scale_from(*p0,self.low_res_shape,self.high_res_shape), 6, (255, 0, 0), 10)
         # Draw Center Line
         frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
-            
+        if "largest_contour" in self.state_info:
+            cv2.drawContours(frame, self.state_info["largest_contour"], -1, (255,0,0),10)
+            pass
         return frame
 
     def estimateLineForm(self, bias_only = False):
         # Returns an estimate of the lines slope and bias relative to the front of the camera frame
         if "line" in self.state_info:
             del self.state_info["line"]
-            
+
         frame = self.low_res_view
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -321,7 +305,27 @@ class Detector(Thread):
             for x, y in np.float32(p).reshape(-1, 2):
                 self.state_info["current_tracks"].append([(x, y, curr_time)])
         self.state_info["last_gray"] = gray
-        
+    def largestForegoodObject(self):
+        frame = self.low_res_view
+        #gray= cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        mask = cv2.inRange(frame, self.lower_green, self.upper_green)
+        #edges = cv2.Canny(gray, 50,200)
+
+        contours, hierarchy= cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+        cv2.destroyAllWindows()
+
+        def get_contour_areas(contours):
+            all_areas= []
+            for cnt in contours:
+                area= cv2.contourArea(cnt)
+                all_areas.append(area)
+            return all_areas
+        sorted_contours= sorted(contours, key=cv2.contourArea, reverse= True)
+        largest_item = sorted_contours[0]
+        self.state_info["largest_contour"] = largest_item
+
+  
     def readCameraFeed(self):
         frame = self.camera_stream.read()
         frame = imutils.resize(frame, width=400)
@@ -365,7 +369,7 @@ class Detector(Thread):
             dx = self.state_info["odom"]["px"]
             dy = self.state_info["odom"]["py"]
             dr = self.state_info["odom"]["r"]
-            dr = 0
+            dr = 0 # Set to zero for tests
             
             m2, b2 = predict_newline(m1, b1, dx, dy, dr, self.low_res_shape)
             
@@ -379,8 +383,8 @@ class Detector(Thread):
             mf = m3 * .8 + m2 * .2
             bf = b3 * .8 + b2 * .2
             
-            #self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
-            #self.state_info["line_fused"]["sample_time"] = curr_time
+            self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
+            self.state_info["line_fused"]["sample_time"] = curr_time
 
     def update(self):     
         self.iter_num += 1
@@ -390,9 +394,10 @@ class Detector(Thread):
         self.readCameraFeed()
         self.checkForMarker()
         self.estimateLineForm()
-        #self.estimateVelocities()
+        self.largestForegoodObject()
+        self.estimateVelocities()
 
-        #self.updateFusedMeasurements()
+        self.updateFusedMeasurements()
 
         if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
