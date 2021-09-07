@@ -36,6 +36,8 @@ def predict_m_b():
 class ComplementaryFilter():
     def __init__(self):
         pass
+    def update(self, a, b):
+        return a 
 class Detector(Thread):
     def __init__(self, debug=False):
         super(Detector, self).__init__()
@@ -164,23 +166,24 @@ class Detector(Thread):
             
 
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
- 
-        if "zones" in self.state_info:
-            for p1, p2, is_green  in self.state_info["zones"]:
-                x, y = scale_from(p1[0], p1[1], self.low_res_shape, self.high_res_shape)
-                p1 = (x,y)
-                
-                x, y = scale_from(p2[0], p2[1], self.low_res_shape, self.high_res_shape)
-                p2 = (x,y)
-                frame = cv2.rectangle(frame, p1, p2, color = (0,255,0) if is_green else (0,0,255), thickness = -1)
+
+        if "line_fused" in self.state_info:
+            m, b = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
+            offset = abs(b) * (self.high_res_shape[1] // 2)
+            b = offset if b > 0 else -offset
+            b += (self.high_res_shape[1] // 2)
             
-            x,y = self.state_info["center"]
-            x, y = int((x/self.low_res_shape[1]) * self.high_res_shape[1]
-                           ), int((y/self.low_res_shape[0]) * self.high_res_shape[0])
-            p = (x,y )
-            frame = cv2.circle(
-                frame, p, 6, (255, 0, 0), 2)
-        
+            # Calculate Start and stop
+            p1 = (int(b),0)
+            p2 = (int(m * self.high_res_shape[1] + b), self.high_res_shape[1])
+            
+            bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
+            
+            frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
+            
+
+            frame = cv2.line(frame, p1, p2,(255,233,243),6)
+         
         if "true_center" in self.state_info:
             p0 = self.state_info["true_center"]
             cv2.circle(
@@ -340,15 +343,18 @@ class Detector(Thread):
     def updateFusedMeasurements(self):
         if not self.initialized:
             if self.state_info.get("line"):
+                # initialized
                 self.state_info["line_last"] = self.state_info["line"]
+                self.slope_filter = ComplementaryFilter()
+                self.bias_filter = ComplementaryFilter()
                 self.state_info["line_fused"] = dict()
-                self.initialized = dict()
+                self.initialized = True
             return
 
         curr_time = time.time()
 
         # Project line measurement into the future
-        if False:
+        if True:
             d_t = curr_time - self.state_info["last_line"]["sample_time"] 
 
             dx = self.state_info["velocity"]["px"] * d_t
@@ -358,12 +364,12 @@ class Detector(Thread):
             # m2, b2 = project()
 
             m, b = self.state_info["last_line"]["slope"], self.state_info["last_line"]["bias"] 
-
+        #self.state_info["line"]["slope"], self.state_info["line"]["bias"]
         mp = self.slope_filter.update(m, m2)
         bp = self.bias_filter.update(b, b2)
 
         self.state_info["line_fused"] = dict()
-        self.state_info["last_line"]["slope"], self.state_info["last_line"]["bias"] = mp,bp
+        self.state_info["last_line"]["slope"], self.state_info["last_line"]["bias"] = mp, bp
 
         self.state_info["line_last"] = self.state_info["line"]
 
