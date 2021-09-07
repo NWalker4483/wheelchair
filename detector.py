@@ -55,8 +55,8 @@ class Detector(Thread):
         self.iter_num = 0 
 
         ####### Image Masking
-        self.lower_green = np.array([32, 42, 0])
-        self.upper_green = np.array([60, 182, 255])
+        self.lower_green = np.array([22, 42, 0])
+        self.upper_green = np.array([70, 230, 255])
 
         ###### Motion Tracking 
         self.lk_params = dict(winSize  = (15, 15),
@@ -70,16 +70,19 @@ class Detector(Thread):
         
         self.state_info["true_center"] = self.true_center = (100,150)
 
+
+        
+        self.state_info["velocity"] = dict()
+        self.state_info["velocity"]["px"] = 0
+        self.state_info["velocity"]["py"] = 0
+        self.state_info["velocity"]["r"] = 0
+
+        ###### Sensor Fusion
+        self.initialized = False
         self.state_info["odom"] = dict()
         self.state_info["odom"]["px"] = 0
         self.state_info["odom"]["py"] = 0
         self.state_info["odom"]["r"] = 0
-
-        ###### Sensor Fusion
-        self.initialized = False
-
-        self.slope_filter = ComplementaryFilter()
-        self.bias_filter = ComplementaryFilter()
 
         ######
         self.high_res_shape = None
@@ -88,7 +91,7 @@ class Detector(Thread):
         self.high_res_view = None
         self.low_res_view = None
 
-        self.camera_stream = VideoStream(usePiCamera = False)
+        self.camera_stream = VideoStream(usePiCamera = True)
         #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
         self.camera_stream.start()
         
@@ -129,70 +132,53 @@ class Detector(Thread):
                 frame, (int(pose.x), int(pose.y)), 6, (255, 255, 255), 2)
 
             # TODO Rotate Marker ID to match marker rotation
-          
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            org = (int(pose.x), int(pose.y))
-            fontScale = 2.5
-            color = (0, 0, 255)
-            frame = cv2.putText(frame, str(ID), org, font, fontScale,
-                                color, 5, cv2.LINE_AA, False)
+            frame = cv2.putText(frame, str(ID), (int(pose.x), int(pose.y)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 2.5,
+                                (0, 0, 255), 5, cv2.LINE_AA, False)
 
         if "mask_points" in self.state_info:
             for x, y in self.state_info["mask_points"]:
                 x, y = scale_from(x, y, self.low_res_shape, self.high_res_shape)
-                frame = cv2.circle(
-                    frame, (x , y), 2, (165, 0, 55), 2)
+                frame = cv2.circle(frame, (x , y), 2, (165, 0, 55), 2)
 
         if "line_points" in self.state_info:
             for x, y in self.state_info["line_points"]:
-                x, y = scale_from(x, y, self.low_res_shape,self.high_res_shape)
-      
-                frame = cv2.circle(
-                    frame, (x, y), 2, (0, 0, 255), 7)
+                x, y = scale_from(x, y, self.low_res_shape, self.high_res_shape)
+                frame = cv2.circle(frame, (x, y), 2, (0, 0, 255), 7)
 
         if "current_tracks" in self.state_info:
             cv2.polylines(frame, [np.int32(list(map(lambda p: scale_from(p[0], p[1], self.low_res_shape, self.high_res_shape), tr))) for tr in self.state_info["current_tracks"]], False, (0, 255, 0))
         
-        if "current_vel" in self.state_info:
-            pass   
-
-        if "lineb" in self.state_info:
+        if "line" in self.state_info:
             m, b = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
-            offset = abs(b) * (self.high_res_shape[1] // 2)
-            b = offset if b > 0 else -offset
-            b += (self.high_res_shape[1] // 2)
             
             # Calculate Start and stop
-            p1 = (int(b),0)
-            p2 = (int(m * self.high_res_shape[1] + b), self.high_res_shape[1])
+            p1 = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)
+            p2 = (int(m * self.high_res_shape[1] + p1[0]), self.high_res_shape[1])
             
             bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
             
             frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
             
-
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
 
-        if "line_fusedv" in self.state_info:
+        if "line_fused" in self.state_info:
             m, b = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
-            #offset = abs(b) * (self.high_res_shape[1] // 2)
-            #b = offset if b > 0 else -offset
-            #b += (self.high_res_shape[1] // 2)
-            b  = 50
+     
             # Calculate Start and stop
-            p1 = (int(b),0)
-            p2 = (int(m * self.high_res_shape[1] + b), self.high_res_shape[1])
+            p1 = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)
+            p2 = (int(m * self.high_res_shape[1] + p1[0]), self.high_res_shape[1])
             
             bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
             
             frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
             
-            frame = cv2.line(frame, p1, p2,(255,233,243),6)
+            frame = cv2.line(frame, p1, p2,(255,233,200),6)
          
         if "true_center" in self.state_info:
             p0 = self.state_info["true_center"]
             cv2.circle(
-                frame, p0, 6, (255, 0, 0), 10)
+                frame,scale_from(*p0,self.low_res_shape,self.high_res_shape), 6, (255, 0, 0), 10)
         # Draw Center Line
         frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
             
@@ -289,7 +275,7 @@ class Detector(Thread):
                 # So that rotation can be calculated
                 times = track[:,-1]
                 track = track[:,:2]
-                track -= self.true_center 
+                track -= self.state_info["true_center"] 
 
                 time_deltas = times[1:] - times[:-1]
                 track_deltas = track[1:] - track[:-1]
@@ -316,7 +302,8 @@ class Detector(Thread):
             self.state_info["velocity"]["px"] = np.mean(x_speeds)
             self.state_info["velocity"]["py"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
-            # self.state_info["velocity"]
+            print(self.state_info["velocity"]["px"],
+            self.state_info["velocity"]["py"])
         
         # TODO: I shouldn't need this every frame
         mask = np.zeros_like(gray)
@@ -342,6 +329,7 @@ class Detector(Thread):
         
         frame = imutils.resize(frame, width=200)
         self.low_res_shape = frame.shape
+        self.state_info["true_center"] = (frame.shape[1]//2, frame.shape[0]//2)
         self.low_res_view = frame
     
     def updateFusedMeasurements(self):
@@ -361,9 +349,9 @@ class Detector(Thread):
 
         curr_time = time.time()
         # Project line measurement into the future
-        if curr_time - self.state_info["line_fused"]["sample_time"] > 1/10:
+        if curr_time - self.state_info["line_fused"]["sample_time"] > 0:
             m1, b1 =  self.state_info["line_init"]["slope"], self.state_info["line_init"]["bias"]
-            d_t = curr_time - self.state_info["line_init"]["sample_time"]
+            d_t = curr_time - self.state_info["line_fused"]["sample_time"]
 
             if d_t > 10:
                 self.initialized = False
@@ -371,29 +359,32 @@ class Detector(Thread):
             # Integrate calculated displacement
             self.state_info["odom"]["px"] += self.state_info["velocity"]["px"] * d_t
             self.state_info["odom"]["py"] += self.state_info["velocity"]["py"] * d_t
-            self.state_info["odom"]["r"] += self.state_info["velocity"]["r"] * d_t
+            #self.state_info["odom"]["r"] += self.state_info["velocity"]["r"] * d_t
             
             dx = self.state_info["odom"]["px"]
             dy = self.state_info["odom"]["py"]
-            dr = self.state_info["odom"]["r"] 
-            print(dx,dy)
-
+            #dr = self.state_info["odom"]["r"]
+            dr = 0
+            
             m2, b2 = predict_newline(m1, b1, dx, dy, dr, self.low_res_shape)
             
             self.estimateLineForm()
-            m3, b3 = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
+            if self.state_info.get("line"):
+                m3, b3 = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
+            else:
+                m3,b3 = 0, 0
             
             # Apply filtering
-            mf = m3 * .8 + m2 * .2
-            bf = b3 * .8 + b2 * .2
+            mf = m2 * .8 + m2 * .2
+            bf = b2 * .8 + b2 * .2
             
             self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
             self.state_info["line_fused"]["sample_time"] = curr_time
-    
-  
+
     def update(self):     
         self.iter_num += 1
-        if self.iter_num % 500 == 0: 
+        if self.iter_num % (24*4) == 0:
+            # Reinitialized 
             self.initialized = False
         self.readCameraFeed()
         self.checkForMarker()
@@ -408,9 +399,6 @@ class Detector(Thread):
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = QrPose2LineForm(self.state_info["marker"]["pose"], self.high_res_shape)
             self.state_info["line_init"] = self.state_info["line"]
             self.state_info["line_fused"] = self.state_info["line"]
-
-            self.slope_filter.reset(self.state_info["line"]["slope"])
-            self.bias_filter.reset(self.state_info["line"]["bias"])
         
         if self.debug:
             cv2.imshow("Debug", self.getDebugView())
