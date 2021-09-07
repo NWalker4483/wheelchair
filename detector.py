@@ -55,8 +55,19 @@ class Detector(Thread):
         self.iter_num = 0 
 
         ####### Image Masking
-        self.lower_green = np.array([22, 42, 0])
+        self.lower_green = np.array([22, 42, 50])
         self.upper_green = np.array([70, 230, 255])
+                # Separate the image into patches 
+        patch_height = 35 #px
+        patch_width = 35 #px
+        sample_cnt = 3 # * WARNING This value is squared 
+
+        # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
+        Y_, X_ = np.mgrid[0:149:patch_height, 0:200:patch_width]
+        self.patch_positions = list(zip(*np.vstack([X_.ravel(), Y_.ravel()])))
+        
+        y_, x_ = np.mgrid[0:patch_height:patch_height//sample_cnt, 0:patch_width:patch_width//sample_cnt]
+        self.sample_positions = list(zip(*np.vstack([x_.ravel(), y_.ravel()])))
 
         ###### Motion Tracking 
         self.lk_params = dict(winSize  = (15, 15),
@@ -66,19 +77,20 @@ class Detector(Thread):
         self.feature_params = dict( maxCorners = 500,
                     qualityLevel = 0.3,
                     minDistance = 7,
-                    blockSize = 7)
-        
-        self.state_info["true_center"] = self.true_center = (100,150)
-
-
-        
-        self.state_info["velocity"] = dict()
+                    blockSize = 7)        self.state_info["velocity"] = dict()
         self.state_info["velocity"]["px"] = 0
         self.state_info["velocity"]["py"] = 0
         self.state_info["velocity"]["r"] = 0
 
         ###### Sensor Fusion
         self.initialized = False
+        self.state_info["sensor_a"] = dict()
+        self.state_info["sensor_b"] = dict()
+        self.state_info["sensor_a"]["latest"] = (0, 0)
+        self.state_info["sensor_b"]["latest"] = (0, 0)
+        self.state_info["sensor_a"]["period"] = 0
+        self.state_info["sensor_b"]["period"] = 0
+        
         self.state_info["odom"] = dict()
         self.state_info["odom"]["px"] = 0
         self.state_info["odom"]["py"] = 0
@@ -92,7 +104,7 @@ class Detector(Thread):
         self.low_res_view = None
 
         self.camera_stream = VideoStream(usePiCamera = True)
-        #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
+        self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
         self.camera_stream.start()
         
         time.sleep(2)  # Warm Up camera
@@ -196,21 +208,10 @@ class Detector(Thread):
         pnts = []
         avg_points = []
         mask_points = []
-        # Separate the image into patches 
-        patch_height = 35 #px
-        patch_width = 25 #px
-        sample_cnt = 5 # * WARNING This value is squared 
 
-        # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
-        Y_, X_ = np.mgrid[0:mask.shape[0]:patch_height, 0:mask.shape[1]:patch_width]
-        # patch_positions = zip(*np.vstack([X_.ravel(), Y_.ravel()]))
-        
-        y_, x_ = np.mgrid[0:patch_height:patch_height//sample_cnt, 0:patch_width:patch_width//sample_cnt]
-        # sample_positions = zip(*np.vstack([x_.ravel(), y_.ravel()]))
-
-        for X, Y in zip(*np.vstack([X_.ravel(), Y_.ravel()])):
+        for X, Y in self.patch_positions:
             vals = []
-            for x, y in zip(*np.vstack([x_.ravel(), y_.ravel()])):
+            for x, y in self.sample_positions:
                 if Y+y >= mask.shape[0] or X+x >= mask.shape[1]:
                     break
                 if mask[Y+y][X+x] == 255:
@@ -302,8 +303,7 @@ class Detector(Thread):
             self.state_info["velocity"]["px"] = np.mean(x_speeds)
             self.state_info["velocity"]["py"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
-            print(self.state_info["velocity"]["px"],
-            self.state_info["velocity"]["py"])
+            # print(self.state_info["velocity"]["px"], self.state_info["velocity"]["py"])
         
         # TODO: I shouldn't need this every frame
         mask = np.zeros_like(gray)
@@ -323,7 +323,7 @@ class Detector(Thread):
         
     def readCameraFeed(self):
         frame = self.camera_stream.read()
-        frame = imutils.resize(frame, width=450)
+        frame = imutils.resize(frame, width=400)
         self.high_res_shape = frame.shape
         self.high_res_view = frame
         
@@ -353,17 +353,17 @@ class Detector(Thread):
             m1, b1 =  self.state_info["line_init"]["slope"], self.state_info["line_init"]["bias"]
             d_t = curr_time - self.state_info["line_fused"]["sample_time"]
 
-            if d_t > 10:
+            if d_t > 7:
                 self.initialized = False
     
             # Integrate calculated displacement
             self.state_info["odom"]["px"] += self.state_info["velocity"]["px"] * d_t
             self.state_info["odom"]["py"] += self.state_info["velocity"]["py"] * d_t
-            #self.state_info["odom"]["r"] += self.state_info["velocity"]["r"] * d_t
+            self.state_info["odom"]["r"] += self.state_info["velocity"]["r"] * d_t
             
             dx = self.state_info["odom"]["px"]
             dy = self.state_info["odom"]["py"]
-            #dr = self.state_info["odom"]["r"]
+            dr = self.state_info["odom"]["r"]
             dr = 0
             
             m2, b2 = predict_newline(m1, b1, dx, dy, dr, self.low_res_shape)
@@ -375,11 +375,11 @@ class Detector(Thread):
                 m3,b3 = 0, 0
             
             # Apply filtering
-            mf = m2 * .8 + m2 * .2
-            bf = b2 * .8 + b2 * .2
+            mf = m3 * .8 + m2 * .2
+            bf = b3 * .8 + b2 * .2
             
-            self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
-            self.state_info["line_fused"]["sample_time"] = curr_time
+            #self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
+            #self.state_info["line_fused"]["sample_time"] = curr_time
 
     def update(self):     
         self.iter_num += 1
@@ -388,10 +388,10 @@ class Detector(Thread):
             self.initialized = False
         self.readCameraFeed()
         self.checkForMarker()
+        self.estimateLineForm()
+        #self.estimateVelocities()
 
-        self.estimateVelocities()
-
-        self.updateFusedMeasurements()
+        #self.updateFusedMeasurements()
 
         if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()

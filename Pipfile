@@ -11,6 +11,7 @@ pygame = "*"
 pyserial = "*"
 serial = "*"
 simple-pid = "*"
+picamera = "*"
 
 [dev-packages]
 autopep8 = "*"
