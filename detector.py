@@ -27,6 +27,15 @@ def scale_from(x, y, res_1, res_2):
             ), int((y/res_1[1]) * res_2[1])
     return x, y
 
+def project_viewbox():
+    pass
+
+def predict_m_b():
+    pass
+
+class ComplementaryFilter():
+    def __init__(self):
+        pass
 class Detector(Thread):
     def __init__(self, debug=False):
         super(Detector, self).__init__()
@@ -50,15 +59,20 @@ class Detector(Thread):
         self.sample_rate = 10 
         self.update_freq = 10 # Hz
         
-        self.s_len = 2.5 # meters
-        #self.ppm_x = 680
-        #self.ppm_y = 680
-        self.state_info["true_center"] = self.true_center = (0,0)
+        self.state_info["true_center"] = self.true_center = (100,100)
 
         ###### Sensor Fusion
         self.initialized = False
         self.last_output = (-1, -1) # Set in initialization
-        
+
+        self.comp_split = .8
+
+        self.src_a_rate = 10 #Hz
+        self.src_b_rate = 10 #Hz
+
+        self.src_a_sample_time = None
+        self.src_b_sample_time = None
+
         ######
         self.high_res_shape = None
         self.low_res_shape = None
@@ -179,7 +193,7 @@ class Detector(Thread):
     def estimateLineForm(self, bias_only = False):
         if "line" in self.state_info:
             del self.state_info["line"]
-        # Returns an estimate of the lines slope and Bias relative to the front of the camera frame
+        # Returns an estimate of the lines slope and bias relative to the front of the camera frame
         frame = self.low_res_view
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -189,7 +203,7 @@ class Detector(Thread):
         avg_points = []
         mask_points = []
         # Separate the image into patches 
-        patch_height = 50 #px
+        patch_height = 35 #px
         patch_width = 25 #px
         sample_cnt = 5 # * WARNING This value is squared 
 
@@ -222,6 +236,7 @@ class Detector(Thread):
             b /= mask.shape[1]//2
 
             self.state_info["line"] = dict()
+            self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = m, b
 
     def estimateVelocity(self):
@@ -230,79 +245,86 @@ class Detector(Thread):
 
         if self.state_info.get("current_tracks"):
             img0, img1 = self.state_info["last_gray"], gray
-            p_c = np.float32([tr[-1] for tr in self.state_info.get("current_tracks")]).reshape(-1, 1, 2)
+            p_c = np.float32([tr[-1][:-1] for tr in self.state_info.get("current_tracks")]).reshape(-1, 1, 2)
+            
             p_f, _st, _err = cv2.calcOpticalFlowPyrLK(img0, img1, p_c, None, **self.lk_params)
+            
             p_r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p_f, None, **self.lk_params)
+            
             drift = abs(p_c - p_r).reshape(-1, 2).max(-1)
             good = drift < 1
             new_tracks = []
+
+            curr_time = time.time()
             for tr, (x, y), good_flag in zip(self.state_info["current_tracks"], p_f.reshape(-1, 2), good):
                 if not good_flag:
+                    last_update = tr[-1][-1]
+                    if (time.time() - last_update) > 5:
+                        del tr
                     continue
-                tr.append((x, y))
+                tr.append((x, y, curr_time))
                 if len(tr) > 10:
-                    del tr[0] # PopLeft
+                    tr = tr[1:10]
                 new_tracks.append(tr)
+            self.state_info["current_tracks"] = new_tracks
+        else:
+            self.state_info["current_tracks"] = []
 
-            if len(new_tracks) > 5: # Do Good Feautures Remain if not trigger 
-                self.state_info["current_tracks"] = new_tracks
-                track_cnt = len(self.state_info.get("current_tracks",[]))
+        if len(self.state_info.get("current_tracks", [])) > 5: # Do Good Feautures Remain if not trigger search for new features
+            # Estimate Velocity From Tracks 
+            x_speeds = []
+            y_speeds = []
+            r_speeds = []
             
-                self.state_info["velocity"] = dict()
+            for track in self.state_info.get("current_tracks", []): 
+                track = np.array(track)
+                # Shift the Plane of tracked point Away from the pixel 
+                # Origin and toward the center of rotation for the robot
+                # So that rotation can be calculated
+                times = track[:,-1]
+                track = track[:,:2]
+                track -= self.true_center 
 
-                # Estimate Velocity From Tracks 
-                self.state_info["velocity"]["x"] = 0
-                self.state_info["velocity"]["y"] = 0
-                self.state_info["velocity"]["rot"] = 0
+                time_deltas = times[1:] - times[:-1]
+                track_deltas = track[1:] - track[:-1]
+                track_speeds = track_deltas
+                track_speeds[:,0] /= time_deltas
+                track_speeds[:,1] /= time_deltas
 
-                avg_delta_x = 0
-                avg_delta_y = 0
-                avg_delta_r = 0 
+                track_r_speeds = [] # average ang dist in radians
+                for vector_1, vector_2, delta_t in zip(track[1:], track[:-1], time_deltas):
+                    unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
+                    unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
+                    dot_product = np.dot(unit_vector_1, unit_vector_2)
+                    angle = np.arccos(dot_product)
+                    track_r_speeds.append(angle/delta_t)
                 
-                for track in self.state_info.get("current_tracks", []): 
-                    track = np.array(track)
-                    # Shift The Plane of tracked point Away from the pixel 
-                    # Origin and toward the center of rotation for the robot
-                    # So that rotation can be calculated
-                    track -= self.true_center 
+                v_x, v_y = np.mean(track_speeds, 0)
+                v_r = np.mean(track_r_speeds)
 
-                    track_deltas = track[1:] - track[:-1]
-                    d_x, d_y = np.mean(track_deltas, 0)
-
-                    track_delta_rads = []
-
-                    for vector_1, vector_2 in zip(track[1:],track[:-1]):
-                        unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
-                        unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
-                        dot_product = np.dot(unit_vector_1, unit_vector_2)
-                        angle = np.arccos(dot_product)
-                        track_delta_rads.append(angle)
-
-                    avg_delta_x += (d_x/1)
-                    avg_delta_y += (d_y/1)
-                    avg_delta_r += (np.mean(track_delta_rads)/1)
-
-                self.state_info["velocity"]["x"] = avg_delta_x / track_cnt # d_t
-                self.state_info["velocity"]["y"] = avg_delta_y / track_cnt
-                self.state_info["velocity"]["rot"] = avg_delta_y / track_cnt
-            else:
-                del self.state_info["current_tracks"]
-
+                x_speeds.append(v_x)
+                y_speeds.append(v_y)
+                r_speeds.append(v_r)
+                
+            self.state_info["velocity"] = dict()
+            self.state_info["velocity"]["px"] = np.mean(x_speeds)
+            self.state_info["velocity"]["py"] = np.mean(y_speeds)
+            self.state_info["velocity"]["r"] = np.mean(r_speeds)
+        
+        # TODO: I shouldn't need this every frame
         mask = np.zeros_like(gray)
         mask[:] = 255
             
-        if self.state_info.get("current_tracks"):
-            # Mark latest position in each track as an roi for features to track 
-            for x, y in [np.int32(tr[-1]) for tr in self.state_info.get("current_tracks")]:
-                cv2.circle(mask, (x, y), 5, 0, -1)
-        else:
-            self.state_info["current_tracks"] = [ ]
-        # TODO: I dont need this every frame
+        # Mark latest position in each track as an roi for features to track 
+        for x, y, _ in [np.int32(tr[-1]) for tr in self.state_info.get("current_tracks",[])]:
+            cv2.circle(mask, (x, y), 5, 0, -1)
+
+        
         p = cv2.goodFeaturesToTrack(gray, mask = mask, **self.feature_params)
         if p is not None: # New feature Positions
+            curr_time = time.time()
             for x, y in np.float32(p).reshape(-1, 2):
-                self.state_info["current_tracks"].append([(x, y)])
-        
+                self.state_info["current_tracks"].append([(x, y, curr_time)])
         self.state_info["last_gray"] = gray
         
     def readCameraFeed(self):
@@ -315,33 +337,58 @@ class Detector(Thread):
         self.low_res_shape = frame.shape
         self.low_res_view = frame
     
-    def fuseMeasurements(self):
-        m, b = self.state_info["line_last"]
+    def updateFusedMeasurements(self):
+        if not self.initialized:
+            if self.state_info.get("line"):
+                self.state_info["line_last"] = self.state_info["line"]
+                self.state_info["line_fused"] = dict()
+                self.initialized = dict()
+            return
 
-        self.state_info["line_fused"] = dict()# ["slope"]
-        
-        
-        self.state_info["time_last"] = self.state_info["time"]
+        curr_time = time.time()
+
+        # Project line measurement into the future
+        if False:
+            d_t = curr_time - self.state_info["last_line"]["sample_time"] 
+
+            dx = self.state_info["velocity"]["px"] * d_t
+            dy = self.state_info["velocity"]["py"] * d_t
+            dr = self.state_info["velocity"]["r"] * d_t
+
+            # m2, b2 = project()
+
+            m, b = self.state_info["last_line"]["slope"], self.state_info["last_line"]["bias"] 
+
+        mp = self.slope_filter.update(m, m2)
+        bp = self.bias_filter.update(b, b2)
+
+        self.state_info["line_fused"] = dict()
+        self.state_info["last_line"]["slope"], self.state_info["last_line"]["bias"] = mp,bp
+
         self.state_info["line_last"] = self.state_info["line"]
 
     def update(self):
+        curr_time = time.time()
+        #for self.schedule
         self.readCameraFeed()
         self.checkForMarker()
 
         self.estimateVelocity()
 
+        self.updateFusedMeasurements()
+
+        self.estimateLineForm()
+
         if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
+            self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = QrPose2LineForm(self.state_info["marker"]["pose"], self.high_res_shape)
-        else:
-            self.estimateLineForm()
-            #self.fuseMeasurements()
-
+            self.state_info["line_fused"] = self.state_info["line"]
+        
         if self.debug:
             cv2.imshow("Debug", self.getDebugView())
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 pass
-        self.state_info["last_time"] = time.time()
 
     def checkForMarker(self):
         if "marker" in self.state_info:
