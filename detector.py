@@ -197,9 +197,10 @@ class Detector(Thread):
         return frame
 
     def estimateLineForm(self, bias_only = False):
+        # Returns an estimate of the lines slope and bias relative to the front of the camera frame
         if "line" in self.state_info:
             del self.state_info["line"]
-        # Returns an estimate of the lines slope and bias relative to the front of the camera frame
+            
         frame = self.low_res_view
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
