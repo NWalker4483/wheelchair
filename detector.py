@@ -82,7 +82,7 @@ class Detector(Thread):
         self.high_res_view = None
         self.low_res_view = None
 
-        self.camera_stream = VideoStream(usePiCamera = False)
+        self.camera_stream = VideoStream(usePiCamera = True)
         #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
         self.camera_stream.start()
         
@@ -345,9 +345,9 @@ class Detector(Thread):
             if self.state_info.get("line"):
                 # initialized
                 self.state_info["line_last"] = self.state_info["line"]
+                self.state_info["line_fused"] = self.state_info["line"]
                 self.slope_filter = ComplementaryFilter()
                 self.bias_filter = ComplementaryFilter()
-                self.state_info["line_fused"] = dict()
                 self.initialized = True
             return
 
@@ -355,7 +355,7 @@ class Detector(Thread):
 
         # Project line measurement into the future
         if True:
-            d_t = curr_time - self.state_info["last_line"]["sample_time"] 
+            d_t = curr_time - self.state_info["line_last"]["sample_time"] 
 
             dx = self.state_info["velocity"]["px"] * d_t
             dy = self.state_info["velocity"]["py"] * d_t
@@ -363,19 +363,17 @@ class Detector(Thread):
 
             # m2, b2 = project()
 
-            m, b = self.state_info["last_line"]["slope"], self.state_info["last_line"]["bias"] 
+            m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"] 
         #self.state_info["line"]["slope"], self.state_info["line"]["bias"]
-        mp = self.slope_filter.update(m, m2)
-        bp = self.bias_filter.update(b, b2)
+        mp = self.slope_filter.update(m, m)
+        bp = self.bias_filter.update(b, b)
 
-        self.state_info["line_fused"] = dict()
-        self.state_info["last_line"]["slope"], self.state_info["last_line"]["bias"] = mp, bp
+        self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"] = mp, bp
 
         self.state_info["line_last"] = self.state_info["line"]
 
     def update(self):
-        curr_time = time.time()
-        #for self.schedule
+        
         self.readCameraFeed()
         self.checkForMarker()
 
