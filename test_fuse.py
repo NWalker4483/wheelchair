@@ -1,40 +1,3 @@
-from threading import Thread
-import time
-
-class UDPStream(Thread):
-
-    def __init__(self, socket):
-        Thread.__init__(self)
-        self.daemon = True
-        self.data = {"last": "i/0","cap_time": time.time()}
-        self.__raw_data = ''
-        self.sock = socket
-        self.alive = True
-
-    def run(self):
-        while self.alive:
-            if type(self.sock) == type(None):
-                continue
-            recv_data = self.sock.recv(1024)
-            if not recv_data:
-                continue
-            self.__raw_data += recv_data.decode()
-            start, stop = -1, -1
-            for i in range(len(self.__raw_data) - 1, -1, -1):
-                if start == -1 and self.__raw_data[i] == ";":
-                    stop = i
-                if stop != -1 and self.__raw_data[i] == "#":
-                    start = i
-                    break
-         
-            if start >= 0 and stop >= 0 and stop > start:
-                self.data["last"] = self.__raw_data[start + 1: stop]
-                self.__raw_data = self.__raw_data[stop:]
-                self.data["cap_time"] = time.time()
-
-    def close(self):
-        self.alive = False
-        self.sock.close()
 import numpy as np
 
 def find_line_itersection(line1, line2):
@@ -72,12 +35,12 @@ def rotate_about(point, origin, radians):
   adjusted_y = (y - offset_y)
   cos_rad = np.cos(radians)
   sin_rad = np.sin(radians)
-  qx = offset_x + (cos_rad * adjusted_x) + (sin_rad * adjusted_y)
-  qy = offset_y + (-sin_rad * adjusted_x) + (cos_rad * adjusted_y)
+  qx = offset_x + cos_rad * adjusted_x + sin_rad * adjusted_y
+  qy = offset_y + -sin_rad * adjusted_x + cos_rad * adjusted_y
   return qx, qy
     
 def get_boxpoints(box_hw):
-  return [(0, box_hw[1]), (box_hw[0],box_hw[1]), (box_hw[0],0), (0,0)]
+  return [(0, box_hw[1]), box_hw, (box_hw[0],0), (0,0)]
 
 def project_viewbox(dx = 10, dy = 10, dr = .25, box_points = [(0, 1), (1,1), (1,0), (0,0)]):
   box_center = ((box_points[0][0] + box_points[3][0])/2, (box_points[0][1] + box_points[3][1])/2)
@@ -103,11 +66,11 @@ def predict_newline(m, b, dx = 10, dy = 10, dr = .25, frame_shape = (500, 500)):
   # Convert to new slope and bias
   return points_to_line(i0, i1)
 
-true_frame_shape = (500, 500)
+true_frame_shape = (250, 500)
 
 dx = 1
-dy = 0
-dr = np.deg2rad(10)
+dy = 1
+dr = 0
 
 m, b = 0, .5
 # Convert bias to pixel value

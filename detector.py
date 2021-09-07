@@ -7,6 +7,7 @@ import numpy as np
 import imutils
 import time
 import cv2
+from utils import predict_newline
 
 def QrPose2LineForm(pose, high_res_shape):
     angle = pose.rot
@@ -27,22 +28,31 @@ def scale_from(x, y, res_1, res_2):
             ), int((y/res_1[1]) * res_2[1])
     return x, y
 
-def project_viewbox():
-    pass
-
-def predict_m_b():
-    pass
-
 class ComplementaryFilter():
-    def __init__(self):
-        pass
-    def update(self, a, b):
-        return a 
+    def __init__(self, weights = [.2,.8], sample_rates = [10, 20]):
+        assert(sum(weights) == 1)
+        self.weights = weights
+        self.sample_rates = sample_rates
+        self.__last_samples = [0 for _ in range(len(sample_rates))]
+        self.__value = None
+
+    def reset(self, value):
+        self.__value = value
+
+    def update(self, *values):
+        high, low = values
+        # curr_time = time.time()
+        for i, (sample_rate, sample_time, values) in enumerate(self.sample_rates, self.__last_samples, values):
+            pass
+        
+        return values[0] 
+
 class Detector(Thread):
     def __init__(self, debug=False):
         super(Detector, self).__init__()
         self.debug = debug
         self.state_info = dict()
+        self.iter_num = 0 
 
         ####### Image Masking
         self.lower_green = np.array([32, 42, 0])
@@ -57,23 +67,19 @@ class Detector(Thread):
                     qualityLevel = 0.3,
                     minDistance = 7,
                     blockSize = 7)
-
-        self.sample_rate = 10 
-        self.update_freq = 10 # Hz
         
-        self.state_info["true_center"] = self.true_center = (100,100)
+        self.state_info["true_center"] = self.true_center = (100,150)
+
+        self.state_info["odom"] = dict()
+        self.state_info["odom"]["px"] = 0
+        self.state_info["odom"]["py"] = 0
+        self.state_info["odom"]["r"] = 0
 
         ###### Sensor Fusion
         self.initialized = False
-        self.last_output = (-1, -1) # Set in initialization
 
-        self.comp_split = .8
-
-        self.src_a_rate = 10 #Hz
-        self.src_b_rate = 10 #Hz
-
-        self.src_a_sample_time = None
-        self.src_b_sample_time = None
+        self.slope_filter = ComplementaryFilter()
+        self.bias_filter = ComplementaryFilter()
 
         ######
         self.high_res_shape = None
@@ -82,7 +88,7 @@ class Detector(Thread):
         self.high_res_view = None
         self.low_res_view = None
 
-        self.camera_stream = VideoStream(usePiCamera = True)
+        self.camera_stream = VideoStream(usePiCamera = False)
         #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
         self.camera_stream.start()
         
@@ -150,7 +156,7 @@ class Detector(Thread):
         if "current_vel" in self.state_info:
             pass   
 
-        if "line" in self.state_info:
+        if "lineb" in self.state_info:
             m, b = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
             offset = abs(b) * (self.high_res_shape[1] // 2)
             b = offset if b > 0 else -offset
@@ -167,12 +173,12 @@ class Detector(Thread):
 
             frame = cv2.line(frame, p1, p2,(0,233,243),6)
 
-        if "line_fused" in self.state_info:
+        if "line_fusedv" in self.state_info:
             m, b = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
-            offset = abs(b) * (self.high_res_shape[1] // 2)
-            b = offset if b > 0 else -offset
-            b += (self.high_res_shape[1] // 2)
-            
+            #offset = abs(b) * (self.high_res_shape[1] // 2)
+            #b = offset if b > 0 else -offset
+            #b += (self.high_res_shape[1] // 2)
+            b  = 50
             # Calculate Start and stop
             p1 = (int(b),0)
             p2 = (int(m * self.high_res_shape[1] + b), self.high_res_shape[1])
@@ -181,7 +187,6 @@ class Detector(Thread):
             
             frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
             
-
             frame = cv2.line(frame, p1, p2,(255,233,243),6)
          
         if "true_center" in self.state_info:
@@ -235,14 +240,12 @@ class Detector(Thread):
         if len(avg_points) > 3:
             avg_points = np.array(avg_points)
             m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
-            b -= mask.shape[1]//2
-            b /= mask.shape[1]//2
 
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = m, b
 
-    def estimateVelocity(self):
+    def estimateVelocities(self):
         frame = self.low_res_view
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -266,8 +269,8 @@ class Detector(Thread):
                         del tr
                     continue
                 tr.append((x, y, curr_time))
-                if len(tr) > 10:
-                    tr = tr[1:10]
+                if len(tr) > 5:
+                    tr = tr[1:6]
                 new_tracks.append(tr)
             self.state_info["current_tracks"] = new_tracks
         else:
@@ -313,6 +316,7 @@ class Detector(Thread):
             self.state_info["velocity"]["px"] = np.mean(x_speeds)
             self.state_info["velocity"]["py"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
+            # self.state_info["velocity"]
         
         # TODO: I shouldn't need this every frame
         mask = np.zeros_like(gray)
@@ -342,52 +346,71 @@ class Detector(Thread):
     
     def updateFusedMeasurements(self):
         if not self.initialized:
+            self.estimateLineForm()
             if self.state_info.get("line"):
                 # initialized
-                self.state_info["line_last"] = self.state_info["line"]
                 self.state_info["line_fused"] = self.state_info["line"]
-                self.slope_filter = ComplementaryFilter()
-                self.bias_filter = ComplementaryFilter()
+                self.state_info["line_init"] = self.state_info["line"]
+
                 self.initialized = True
+                self.state_info["odom"] = dict()
+                self.state_info["odom"]["px"] = 0
+                self.state_info["odom"]["py"] = 0
+                self.state_info["odom"]["r"] = 0
             return
 
         curr_time = time.time()
-
         # Project line measurement into the future
-        if True:
-            d_t = curr_time - self.state_info["line_last"]["sample_time"] 
+        if curr_time - self.state_info["line_fused"]["sample_time"] > 1/10:
+            m1, b1 =  self.state_info["line_init"]["slope"], self.state_info["line_init"]["bias"]
+            d_t = curr_time - self.state_info["line_init"]["sample_time"]
 
-            dx = self.state_info["velocity"]["px"] * d_t
-            dy = self.state_info["velocity"]["py"] * d_t
-            dr = self.state_info["velocity"]["r"] * d_t
+            if d_t > 10:
+                self.initialized = False
+    
+            # Integrate calculated displacement
+            self.state_info["odom"]["px"] += self.state_info["velocity"]["px"] * d_t
+            self.state_info["odom"]["py"] += self.state_info["velocity"]["py"] * d_t
+            self.state_info["odom"]["r"] += self.state_info["velocity"]["r"] * d_t
+            
+            dx = self.state_info["odom"]["px"]
+            dy = self.state_info["odom"]["py"]
+            dr = self.state_info["odom"]["r"] 
+            print(dx,dy)
 
-            # m2, b2 = project()
-
-            m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"] 
-        #self.state_info["line"]["slope"], self.state_info["line"]["bias"]
-        mp = self.slope_filter.update(m, m)
-        bp = self.bias_filter.update(b, b)
-
-        self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"] = mp, bp
-
-        self.state_info["line_last"] = self.state_info["line"]
-
-    def update(self):
-        
+            m2, b2 = predict_newline(m1, b1, dx, dy, dr, self.low_res_shape)
+            
+            self.estimateLineForm()
+            m3, b3 = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
+            
+            # Apply filtering
+            mf = m3 * .8 + m2 * .2
+            bf = b3 * .8 + b2 * .2
+            
+            self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
+            self.state_info["line_fused"]["sample_time"] = curr_time
+    
+  
+    def update(self):     
+        self.iter_num += 1
+        if self.iter_num % 500 == 0: 
+            self.initialized = False
         self.readCameraFeed()
         self.checkForMarker()
 
-        self.estimateVelocity()
+        self.estimateVelocities()
 
         self.updateFusedMeasurements()
-
-        self.estimateLineForm()
 
         if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = QrPose2LineForm(self.state_info["marker"]["pose"], self.high_res_shape)
+            self.state_info["line_init"] = self.state_info["line"]
             self.state_info["line_fused"] = self.state_info["line"]
+
+            self.slope_filter.reset(self.state_info["line"]["slope"])
+            self.bias_filter.reset(self.state_info["line"]["bias"])
         
         if self.debug:
             cv2.imshow("Debug", self.getDebugView())
