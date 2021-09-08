@@ -7,7 +7,7 @@ import numpy as np
 import imutils
 import time
 import cv2
-from utils import predict_newline
+from test_fuse import predict_newline, draw_line
 
 def QrPose2LineForm(pose, high_res_shape):
     angle = pose.rot
@@ -65,6 +65,8 @@ class Detector(Thread):
 
         ###### Sensor Fusion
         self.initialized = False
+        self.last_sample_time = time.time()
+        self.state_info["alpha"] = .8
         self.state_info["sensor_a"] = dict()
         self.state_info["sensor_b"] = dict()
         self.state_info["sensor_a"]["latest"] = (0, 0)
@@ -144,36 +146,30 @@ class Detector(Thread):
         
         if "line" in self.state_info:
             m, b = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
-            
-            # Calculate Start and stop
-            p1 = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)
-            p2 = (int(m * self.high_res_shape[1] + p1[0]), self.high_res_shape[1])
-            
-            bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
-            
-            frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
-            
-            frame = cv2.line(frame, p1, p2,(0,233,243),6)
+        
+            b = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)[0]
+
+            frame = draw_line(frame, m, b, color=(0,233,243))
 
         if "line_fused" in self.state_info:
             m, b = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
-     
-            # Calculate Start and stop
-            p1 = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)
-            p2 = (int(m * self.high_res_shape[1] + p1[0]), self.high_res_shape[1])
-            
+        
+            b = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)[0]
+
             bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
-            
-            frame = cv2.line(frame, (p1[0], 2), (frame.shape[1]//2, 2), bias_color, 6)
-            
-            frame = cv2.line(frame, p1, p2,(255,233,200),6)
-         
+
+            frame = cv2.line(frame, (b, 2), (frame.shape[1]//2, 2), bias_color, 6)
+
+            frame = draw_line(frame, m, b, color=(255 ,233,243))
+                     
         if "true_center" in self.state_info:
             p0 = self.state_info["true_center"]
             cv2.circle(
                 frame,scale_from(*p0,self.low_res_shape,self.high_res_shape), 6, (255, 0, 0), 10)
+        
         # Draw Center Line
         frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
+        
         if "largest_contour" in self.state_info:
             c=self.state_info["largest_contour"]
             cv2.drawContours(frame, c, -1, (255,0,0),10)
@@ -189,10 +185,10 @@ class Detector(Thread):
             frame = cv2.circle(frame, extTop, 2, (255, 0, 255), 7)
             frame = cv2.circle(frame, extBot, 2, (255, 0, 255), 7)
             frame = cv2.circle(frame, l_c, 2, (255, 255, 255), 7)
-            pass
+          
         return frame
 
-    def estimateLineForm(self, bias_only = False):
+    def estimateLineForm(self):
         # Returns an estimate of the lines slope and bias relative to the front of the camera frame
         if "line" in self.state_info:
             del self.state_info["line"]
@@ -202,28 +198,26 @@ class Detector(Thread):
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.lower_green, self.upper_green)
         
-        pnts = []
         avg_points = []
         mask_points = []
 
         for X, Y in self.patch_positions:
-            vals = []
+            green_spots = []
             for x, y in self.sample_positions:
                 if Y+y >= mask.shape[0] or X+x >= mask.shape[1]:
                     break
                 if mask[Y+y][X+x] == 255:
-                    vals.append([X+x, Y+y])
-            if len(vals) > 3:
-                pnts.append(np.mean(vals, axis=0))
-            mask_points += vals
-        avg_points += pnts
-
+                    green_spots.append([X+x, Y+y])
+            if len(green_spots) > 3:
+                avg_points.append(np.mean(green_spots, axis=0))
+            mask_points += green_spots
+    
         self.state_info["mask_points"] = mask_points
         self.state_info["line_points"] = avg_points
 
         if len(avg_points) > 3:
             avg_points = np.array(avg_points)
-            m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
+            m, b = np.polyfit(avg_points[:,0], avg_points[:,1], 1)
 
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
@@ -283,11 +277,18 @@ class Detector(Thread):
 
                 track_r_speeds = [] # average ang dist in radians
                 for vector_1, vector_2, delta_t in zip(track[1:], track[:-1], time_deltas):
+                    # While making the assumption that the distance traveled will be less than 2pi radians 
+                    # Determine the minimum angular distance and direction travel between the start and stop at actor
+                    # TODO: I have an actually tested the map below here so it might be giving me BS results or rotations in the wrong direction
                     unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
                     unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
-                    dot_product = np.dot(unit_vector_1, unit_vector_2)
-                    angle = np.arccos(dot_product)
-                    track_r_speeds.append(angle/delta_t)
+
+                    angle_1 = np.arccos(np.dot(unit_vector_1, [0,1]))
+                    angle_2 = np.arccos(np.dot(unit_vector_2, [0,1]))
+                    
+                    min_rad_dist = lambda a, b: (b - a) if abs(a - b) < abs((2*np.pi) - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - (2*np.pi))
+                    
+                    track_r_speeds.append(min_rad_dist(angle_1, angle_2)/delta_t)
                 
                 v_x, v_y = np.mean(track_speeds, 0)
                 v_r = np.mean(track_r_speeds)
@@ -300,8 +301,7 @@ class Detector(Thread):
             self.state_info["velocity"]["px"] = np.mean(x_speeds)
             self.state_info["velocity"]["py"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
-            # print(self.state_info["velocity"]["px"], self.state_info["velocity"]["py"])
-        
+
         # TODO: I shouldn't need this every frame
         mask = np.zeros_like(gray)
         mask[:] = 255
@@ -310,7 +310,6 @@ class Detector(Thread):
         for x, y, _ in [np.int32(tr[-1]) for tr in self.state_info.get("current_tracks",[])]:
             cv2.circle(mask, (x, y), 5, 0, -1)
 
-        
         p = cv2.goodFeaturesToTrack(gray, mask = mask, **self.feature_params)
         if p is not None: # New feature Positions
             curr_time = time.time()
@@ -325,8 +324,6 @@ class Detector(Thread):
         sorted_contours= sorted(contours, key=cv2.contourArea, reverse= True)
         largest_item = sorted_contours[0]
         self.state_info["largest_contour"] = largest_item
-
-  
     def readCameraFeed(self):
         frame = self.camera_stream.read()
         frame = imutils.resize(frame, width=400)
@@ -337,52 +334,40 @@ class Detector(Thread):
         self.low_res_shape = frame.shape
         self.state_info["true_center"] = (frame.shape[1]//2, frame.shape[0]//2)
         self.low_res_view = frame
-    
     def updateFusedMeasurements(self):
+        # Store whatever the most recent line detection is so that it's available between short gaps in detection
+        if self.state_info.get("line"):
+            self.state_info["line_last"] = self.state_info.get("line")
+
         if not self.initialized:
-            self.estimateLineForm()
             if self.state_info.get("line"):
                 # initialized
                 self.state_info["line_fused"] = self.state_info["line"]
-                self.state_info["line_init"] = self.state_info["line"]
 
                 self.initialized = True
-                self.state_info["odom"] = dict()
-                self.state_info["odom"]["px"] = 0
-                self.state_info["odom"]["py"] = 0
-                self.state_info["odom"]["r"] = 0
             return
 
         curr_time = time.time()
-        # Project line measurement into the future
-        if curr_time - self.state_info["line_fused"]["sample_time"] > 0:
-            m1, b1 =  self.state_info["line_init"]["slope"], self.state_info["line_init"]["bias"]
-            d_t = curr_time - self.state_info["line_fused"]["sample_time"]
 
-            if d_t > 7:
-                self.initialized = False
-    
-            # Integrate calculated displacement
-            self.state_info["odom"]["px"] += self.state_info["velocity"]["px"] * d_t
-            self.state_info["odom"]["py"] += self.state_info["velocity"]["py"] * d_t
-            self.state_info["odom"]["r"] += self.state_info["velocity"]["r"] * d_t
-            
-            dx = self.state_info["odom"]["px"]
-            dy = self.state_info["odom"]["py"]
-            dr = self.state_info["odom"]["r"]
-            dr = 0 # Set to zero for tests
-            
-            m2, b2 = predict_newline(m1, b1, dx, dy, dr, self.low_res_shape)
-            
-            self.estimateLineForm()
-            if self.state_info.get("line"):
-                m3, b3 = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
-            else:
-                m3,b3 = 0, 0
-            
+        self.tau = tau = 1/20
+
+        d_t = curr_time - self.state_info["line_fused"]["sample_time"]
+        if d_t >= self.tau:
+            # Update the predicted value
+            dx = self.state_info["velocity"]["px"] * d_t
+            dy = self.state_info["velocity"]["py"] * d_t
+            dr = self.state_info["velocity"]["r"] * d_t
+
+            mf_1, bf_1 = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
+            mp, bp = predict_newline(mf_1, bf_1, dx, dy, dr, self.low_res_shape)
+
+            m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"]
+                
             # Apply filtering
-            mf = m3 * .8 + m2 * .2
-            bf = b3 * .8 + b2 * .2
+            self.alpha = .8
+
+            mf = mp * self.alpha + m * (1 - self.alpha)
+            bf = bp * self.alpha + b * (1 - self.alpha)
             
             self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
             self.state_info["line_fused"]["sample_time"] = curr_time
@@ -390,15 +375,14 @@ class Detector(Thread):
     def update(self):     
         self.iter_num += 1
         if self.iter_num % (24*4) == 0:
-            # Reinitialized 
+            # Reinitialize
             self.initialized = False
         self.readCameraFeed()
         self.checkForMarker()
         self.estimateLineForm()
-        # self.largestForegoodObject()
-        # self.estimateVelocities()
-
-        # self.updateFusedMeasurements()
+        self.estimateVelocities()
+        self.updateFusedMeasurements()
+        #self.largestForegoodObject()
 
         if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
