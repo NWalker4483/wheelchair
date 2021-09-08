@@ -24,8 +24,7 @@ def QrPose2LineForm(pose, high_res_shape):
     return slope, bias
 
 def scale_from(x, y, res_1, res_2):
-    x, y = int((x/res_1[0]) * res_2[0]
-            ), int((y/res_1[1]) * res_2[1])
+    x, y = int((x/res_1[0]) * res_2[0]), int((y/res_1[1]) * res_2[1])
     return x, y
 
 class Detector(Thread):
@@ -36,8 +35,8 @@ class Detector(Thread):
         self.iter_num = 0 
 
         ####### Image Masking
-        self.lower_green = np.array([22, 42, 50])
-        self.upper_green = np.array([70, 230, 255])
+        self.lower_green = np.array([12, 50 , 5])
+        self.upper_green = np.array([80, 255, 255])
                 # Separate the image into patches 
         patch_height = 35 #px
         patch_width = 35 #px
@@ -176,7 +175,20 @@ class Detector(Thread):
         # Draw Center Line
         frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
         if "largest_contour" in self.state_info:
-            cv2.drawContours(frame, self.state_info["largest_contour"], -1, (255,0,0),10)
+            c=self.state_info["largest_contour"]
+            cv2.drawContours(frame, c, -1, (255,0,0),10)
+            # determine the most extreme points along the contour
+            extLeft = tuple(c[c[:, :, 0].argmin()][0])
+            extRight = tuple(c[c[:, :, 0].argmax()][0])
+            extTop = tuple(c[c[:, :, 1].argmin()][0])
+            extBot = tuple(c[c[:, :, 1].argmax()][0])
+            l_c =  ((extRight[0] + extLeft[0])//2, extBot[1])
+            
+            frame = cv2.circle(frame, extLeft, 2, (255, 0, 255), 7)
+            frame = cv2.circle(frame, extRight, 2, (255, 0, 255), 7)
+            frame = cv2.circle(frame, extTop, 2, (255, 0, 255), 7)
+            frame = cv2.circle(frame, extBot, 2, (255, 0, 255), 7)
+            frame = cv2.circle(frame, l_c, 2, (255, 255, 255), 7)
             pass
         return frame
 
@@ -305,8 +317,9 @@ class Detector(Thread):
             for x, y in np.float32(p).reshape(-1, 2):
                 self.state_info["current_tracks"].append([(x, y, curr_time)])
         self.state_info["last_gray"] = gray
+    
     def largestForegoodObject(self):
-        frame = self.low_res_view
+        frame = self.high_res_view
         mask = cv2.inRange(frame, self.lower_green, self.upper_green)
         contours, hierarchy= cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         sorted_contours= sorted(contours, key=cv2.contourArea, reverse= True)
@@ -382,10 +395,10 @@ class Detector(Thread):
         self.readCameraFeed()
         self.checkForMarker()
         self.estimateLineForm()
-        self.largestForegoodObject()
-        self.estimateVelocities()
+        # self.largestForegoodObject()
+        # self.estimateVelocities()
 
-        self.updateFusedMeasurements()
+        # self.updateFusedMeasurements()
 
         if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
