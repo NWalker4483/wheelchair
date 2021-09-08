@@ -17,7 +17,7 @@ def find_line_intersection(m1, b1, m2, b2):
     # y = mx + b
     y = m1 * x + b1
     return x, y
-    
+
 def points_to_line(p1, p2):
   # when given two points, return a slope and bias value which will intersect with those given points
   x1, y1 = p1
@@ -80,15 +80,15 @@ def draw_boxpoints(frame, box_points, color = (255, 0, 0)):
     cv2.line(frame, [int(i) for i in box_points[i]], [int(i) for i in box_points[i-1]], color, 3)
   return frame
 
-def draw_line(frame, slope, bias, color = (0, 255, 0), thickness = 2):
-  if slope > 0:
-    cv2.line(frame, (0, int(bias)), (int((frame.shape[0] - bias)/slope), frame.shape[0]), color, thickness)
+def draw_line(frame, slope, bias, color = (0, 255, 0), thickness = 2, swap_xy = False):
+  if swap_xy:
+    p1 = (int(bias), 0)
+    p2 = (int(slope * frame.shape[0] + bias), frame.shape[0])
   else:
-    if slope != 0:
-      xi = int(-bias/slope) 
-    else:
-      xi = 0 
-    cv2.line(frame, (0, int(bias)), (xi, 0), color, thickness)
+    p1 = (0, int(bias))
+    p2 = (int(slope * frame.shape[1] + bias), frame.shape[1])
+
+  cv2.line(frame, p1, p2, color, thickness)
   return frame
 
 if __name__ == "__main__":

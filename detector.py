@@ -27,6 +27,9 @@ def scale_from(x, y, res_1, res_2):
     x, y = int((x/res_1[0]) * res_2[0]), int((y/res_1[1]) * res_2[1])
     return x, y
 
+def scale_line(m, b, res_1, res_2):
+    return m, b
+
 class Detector(Thread):
     def __init__(self, debug=False):
         super(Detector, self).__init__()
@@ -43,6 +46,7 @@ class Detector(Thread):
         self.patch_height = 35 #px
         self.patch_width = 35 #px
         self.sample_cnt = 3 # * WARNING This value is squared 
+        self.swap_xy = True
 
         # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
         Y_, X_ = np.mgrid[0:149:self.patch_height, 0:200:self.patch_width]
@@ -68,20 +72,17 @@ class Detector(Thread):
 
         ###### Sensor Fusion
         self.initialized = False
-        self.last_sample_time = time.time()
         self.alpha = .8
-        
-        self.state_info["odom"] = dict()
-        self.state_info["odom"]["px"] = 0
-        self.state_info["odom"]["py"] = 0
-        self.state_info["odom"]["r"] = 0
+        self.tau = 1/20
 
-        ######
+        ###### Image Capturing
         self.high_res_shape = None
         self.low_res_shape = None
         
         self.high_res_view = None
         self.low_res_view = None
+
+        self.hl_ratio = 3
 
         self.camera_stream = VideoStream(usePiCamera = False)
         # self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
@@ -142,35 +143,28 @@ class Detector(Thread):
         
         if "line" in self.state_info:
             m, b = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
-        
-            p1, p2 = line_to_points(m, b)
-            p1,p2 = list(p1), list(p2)
-            #p1[0] += self.low_res_shape[1] //2
-            #p2[0] += self.low_res_shape[1] //2 
-            p1 = scale_from(*p1, self.low_res_shape,self.high_res_shape)
-            p2 = scale_from(*p2, self.low_res_shape, self.high_res_shape)
-            m, b = points_to_line(p1,p2)
-            print(m,b)
-            frame = draw_line(frame, m, b, color=(0,233,243))
+            if self.swap_xy:
+                b_ = scale_from(abs(b), 0, self.low_res_shape, self.high_res_shape)[0]
+            else:
+                b_ = scale_from(0,abs(b), self.low_res_shape, self.high_res_shape)[1]
+            b = b_ if b >= 0 else -b_
+
+            frame = draw_line(frame, m, b, color=(0, 233, 243), swap_xy = self.swap_xy)
 
         if "line_fused" in self.state_info:
             m, b = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
-        
-            b = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)[0]
+            if self.swap_xy:
+                b_ = scale_from(abs(b), 0, self.low_res_shape, self.high_res_shape)[0]
+            else:
+                b_ = scale_from(0,abs(b), self.low_res_shape, self.high_res_shape)[1]
+            b = b_ if b >= 0 else -b_
 
-            bias_color = (2,2,255) if b > frame.shape[1]//2 else (255,2,0)
-
-            frame = cv2.line(frame, (b, 2), (frame.shape[1]//2, 2), bias_color, 6)
-
-            frame = draw_line(frame, m, b, color=(255 ,233,243))
+            frame = draw_line(frame, m, b, color=(255, 233, 243), swap_xy = self.swap_xy)
                      
         if "true_center" in self.state_info:
             p0 = self.state_info["true_center"]
             cv2.circle(
                 frame,scale_from(*p0,self.low_res_shape,self.high_res_shape), 6, (255, 0, 0), 10)
-        
-        # Draw Center Line
-        frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
         
         if "largest_contour" in self.state_info:
             c=self.state_info["largest_contour"]
@@ -187,7 +181,9 @@ class Detector(Thread):
             frame = cv2.circle(frame, extTop, 2, (255, 0, 255), 7)
             frame = cv2.circle(frame, extBot, 2, (255, 0, 255), 7)
             frame = cv2.circle(frame, l_c, 2, (255, 255, 255), 7)
-          
+        # Draw Center Line
+        frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
+        
         return frame
 
     def estimateLineForm(self):
@@ -207,7 +203,7 @@ class Detector(Thread):
             green_spots = []
             for x, y in self.sample_positions:
                 if Y+y >= mask.shape[0] or X+x >= mask.shape[1]:
-                    break
+                    continue
                 if mask[Y+y][X+x] == 255:
                     green_spots.append([X+x, Y+y])
             if len(green_spots) > 3:
@@ -220,9 +216,12 @@ class Detector(Thread):
         if len(avg_points) >= 3:
             avg_points = np.array(avg_points)
             # Add Notes (too low too high blah) 
-            m, b = np.polyfit(avg_points[:,0], avg_points[:,1], 1)
+            if self.swap_xy:
+                m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
+            else:
+                m, b = np.polyfit(avg_points[:,0], avg_points[:,1], 1)
+                
             m, b = round(m,3), round(b,3)
-            # print(m,b, frame.shape)
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = m, b
@@ -301,7 +300,6 @@ class Detector(Thread):
                 y_speeds.append(v_y)
                 r_speeds.append(v_r)
                 
-            self.state_info["velocity"] = dict()
             self.state_info["velocity"]["px"] = np.mean(x_speeds)
             self.state_info["velocity"]["py"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
@@ -328,6 +326,7 @@ class Detector(Thread):
         sorted_contours= sorted(contours, key=cv2.contourArea, reverse= True)
         largest_item = sorted_contours[0]
         self.state_info["largest_contour"] = largest_item
+    
     def readCameraFeed(self):
         frame = self.camera_stream.read()
         frame = imutils.resize(frame, width=400)
@@ -338,6 +337,7 @@ class Detector(Thread):
         self.low_res_shape = frame.shape
         self.state_info["true_center"] = (frame.shape[1]//2, frame.shape[0]//2)
         self.low_res_view = frame
+    
     def updateFusedMeasurements(self):
         # Store whatever the most recent line detection is so that it's available between short gaps in detection
         if self.state_info.get("line"):
@@ -363,6 +363,9 @@ class Detector(Thread):
             dr = self.state_info["velocity"]["r"] * d_t
 
             mf_1, bf_1 = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
+            if self.swap_xy:
+                dx, dy = dy, dx
+            
             mp, bp = predict_newline(mf_1, bf_1, dx, dy, dr, self.low_res_shape)
 
             m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"]
@@ -448,7 +451,7 @@ if __name__ == '__main__':
         while True:  # loop over the frames from the video stream
             s=time.time()
             det.update()
-            #print("FPS: ", 1.0 / (time.time() - s))
+            print("FPS: ", 1.0 / (time.time() - s))
     except KeyboardInterrupt as e:
         print("Manual ShutOff")
     finally:
