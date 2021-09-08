@@ -7,7 +7,7 @@ import numpy as np
 import imutils
 import time
 import cv2
-from test_fuse import predict_newline, draw_line
+from test_fuse import predict_newline, draw_line, line_to_points, points_to_line
 
 def QrPose2LineForm(pose, high_res_shape):
     angle = pose.rot
@@ -35,18 +35,20 @@ class Detector(Thread):
         self.iter_num = 0 
 
         ####### Image Masking
-        self.lower_green = np.array([12, 50 , 5])
-        self.upper_green = np.array([80, 255, 255])
-                # Separate the image into patches 
-        patch_height = 35 #px
-        patch_width = 35 #px
-        sample_cnt = 3 # * WARNING This value is squared 
+        self.lower_green = np.array([22, 50 , 25])
+        self.upper_green = np.array([70, 255, 255])
+        
+        ####### Line Estimation
+        # Separate the image into patches 
+        self.patch_height = 35 #px
+        self.patch_width = 35 #px
+        self.sample_cnt = 3 # * WARNING This value is squared 
 
         # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
-        Y_, X_ = np.mgrid[0:149:patch_height, 0:200:patch_width]
+        Y_, X_ = np.mgrid[0:149:self.patch_height, 0:200:self.patch_width]
         self.patch_positions = list(zip(*np.vstack([X_.ravel(), Y_.ravel()])))
         
-        y_, x_ = np.mgrid[0:patch_height:patch_height//sample_cnt, 0:patch_width:patch_width//sample_cnt]
+        y_, x_ = np.mgrid[0:self.patch_height:self.patch_height//self.sample_cnt, 0:self.patch_width:self.patch_width//self.sample_cnt]
         self.sample_positions = list(zip(*np.vstack([x_.ravel(), y_.ravel()])))
 
         ###### Motion Tracking 
@@ -57,7 +59,8 @@ class Detector(Thread):
         self.feature_params = dict( maxCorners = 500,
                     qualityLevel = 0.3,
                     minDistance = 7,
-                    blockSize = 7)        
+                    blockSize = 7)
+        
         self.state_info["velocity"] = dict()
         self.state_info["velocity"]["px"] = 0
         self.state_info["velocity"]["py"] = 0
@@ -66,13 +69,7 @@ class Detector(Thread):
         ###### Sensor Fusion
         self.initialized = False
         self.last_sample_time = time.time()
-        self.state_info["alpha"] = .8
-        self.state_info["sensor_a"] = dict()
-        self.state_info["sensor_b"] = dict()
-        self.state_info["sensor_a"]["latest"] = (0, 0)
-        self.state_info["sensor_b"]["latest"] = (0, 0)
-        self.state_info["sensor_a"]["period"] = 0
-        self.state_info["sensor_b"]["period"] = 0
+        self.alpha = .8
         
         self.state_info["odom"] = dict()
         self.state_info["odom"]["px"] = 0
@@ -92,7 +89,6 @@ class Detector(Thread):
         
         time.sleep(2)  # Warm Up camera
         self.readCameraFeed()
-        self.state_info["last_time"] = time.time()
 
         self.daemeon = True
         self.__alive = True
@@ -147,8 +143,14 @@ class Detector(Thread):
         if "line" in self.state_info:
             m, b = self.state_info["line"]["slope"], self.state_info["line"]["bias"]
         
-            b = scale_from(int(b),0, self.low_res_shape, self.high_res_shape)[0]
-
+            p1, p2 = line_to_points(m, b)
+            p1,p2 = list(p1), list(p2)
+            #p1[0] += self.low_res_shape[1] //2
+            #p2[0] += self.low_res_shape[1] //2 
+            p1 = scale_from(*p1, self.low_res_shape,self.high_res_shape)
+            p2 = scale_from(*p2, self.low_res_shape, self.high_res_shape)
+            m, b = points_to_line(p1,p2)
+            print(m,b)
             frame = draw_line(frame, m, b, color=(0,233,243))
 
         if "line_fused" in self.state_info:
@@ -215,10 +217,12 @@ class Detector(Thread):
         self.state_info["mask_points"] = mask_points
         self.state_info["line_points"] = avg_points
 
-        if len(avg_points) > 3:
+        if len(avg_points) >= 3:
             avg_points = np.array(avg_points)
+            # Add Notes (too low too high blah) 
             m, b = np.polyfit(avg_points[:,0], avg_points[:,1], 1)
-
+            m, b = round(m,3), round(b,3)
+            # print(m,b, frame.shape)
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = m, b
@@ -337,7 +341,7 @@ class Detector(Thread):
     def updateFusedMeasurements(self):
         # Store whatever the most recent line detection is so that it's available between short gaps in detection
         if self.state_info.get("line"):
-            self.state_info["line_last"] = self.state_info.get("line")
+            self.state_info["line_last"] = self.state_info["line"]
 
         if not self.initialized:
             if self.state_info.get("line"):
@@ -364,8 +368,6 @@ class Detector(Thread):
             m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"]
                 
             # Apply filtering
-            self.alpha = .8
-
             mf = mp * self.alpha + m * (1 - self.alpha)
             bf = bp * self.alpha + b * (1 - self.alpha)
             
@@ -384,7 +386,7 @@ class Detector(Thread):
         self.updateFusedMeasurements()
         #self.largestForegoodObject()
 
-        if self.state_info.get("marker"): # Default to Absolute Measurement
+        if False:# self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = QrPose2LineForm(self.state_info["marker"]["pose"], self.high_res_shape)
@@ -446,7 +448,7 @@ if __name__ == '__main__':
         while True:  # loop over the frames from the video stream
             s=time.time()
             det.update()
-            print("FPS: ", 1.0 / (time.time() - s))
+            #print("FPS: ", 1.0 / (time.time() - s))
     except KeyboardInterrupt as e:
         print("Manual ShutOff")
     finally:
