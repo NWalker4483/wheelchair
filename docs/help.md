@@ -1,3 +1,3 @@
-![hku](chair.jpg)
+![hku](images/chair.jpg)
 
-![hku](map.jpg)
+![hku](images/map.jpg)

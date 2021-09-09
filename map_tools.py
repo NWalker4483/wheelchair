@@ -8,7 +8,8 @@ class QrMap():
             2: [0,3,0,1], 
             3: [0,4,0,2], 
             4: [0,1,0,3]}
-
+    def node_exists(self, node_id):
+        return True
     def get_connection_direction(self, start,other):
         try:
             return [i for i in range(4) if self.__connections[start][i] == other][0]

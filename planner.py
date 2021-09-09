@@ -11,19 +11,21 @@ class Planner():
         self.plan = []
 
     def set_goal(self, goal_id):
-        # Validate Goal 
-
-        if self.goal == goal_id:
-            print(f"Current Goal: {goal_id}")
-            return
+        if self.map.node_exists(goal_id):
+            if self.goal == goal_id:
+                print(f"Current Goal: {goal_id}")
+                return
+            else:
+                self.exit_plan()
+                self.goal = goal_id
         else:
-            self.exit_plan()
-            self.goal = goal_id
+            print(f"QR Code {goal_id} does not exist in the provided map file")
 
     def update(self):
         self.detector.update()
         if self.detector.state_info.get("marker"):
             marker_id = self.detector.state_info.get("marker")["id"]
+            # Fix 
             if marker_id == self.goal:
                 self.exit_plan()
                 print("Goal Reached")

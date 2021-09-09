@@ -1,7 +1,6 @@
 from imutils.video import VideoStream
 from pyzbar.pyzbar import decode
 from threading import Thread
-from math import pi, acos, atan
 from tf import Pose
 import numpy as np
 import imutils
@@ -10,20 +9,7 @@ import cv2
 from box_projection import predict_newline
 from utils import draw_line, line_to_points, points_to_line, rotate_about
 
-def QrPose2LineForm(pose, high_res_shape):
-    raise(NotImplementedError)
-    angle = pose.rot
-    angle -= 180 if angle > 180 else 0
-    
-    min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
-    
-    base = min([0, 90, 180, 270], key = lambda x: abs(min_ang_dist(angle, x)))
-    angle = -min_ang_dist(angle, base) 
-    slope = atan(angle * (3.14/180))
 
-    bias = pose.x - (slope * pose.y)
-    bias = (bias - (high_res_shape[1] // 2)) / (high_res_shape[1]//2)
-    return slope, bias
 
 def scale_from(x, y, res_1, res_2):
     x, y = int((x/res_1[0]) * res_2[0]), int((y/res_1[1]) * res_2[1])
@@ -165,7 +151,7 @@ class Detector(Thread):
         if "true_center" in self.state_info:
             p0 = self.state_info["true_center"]
             cv2.circle(
-                frame,scale_from(*p0,self.low_res_shape,self.high_res_shape), 6, (255, 0, 0), 10)
+                frame,scale_from(*p0,res_1 = self.low_res_shape,res_2 =self.high_res_shape), 6, (255, 0, 0), 10)
         
         if "largest_contour" in self.state_info:
             c=self.state_info["largest_contour"]
@@ -414,7 +400,20 @@ class Detector(Thread):
             cv2.imshow("Debug", self.getDebugView())
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 pass
-
+    def QrPose2LineForm(self, pose, high_res_shape):
+        raise(NotImplementedError)
+        angle = pose.rot
+        angle -= 180 if angle > 180 else 0
+        
+        min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
+        
+        base = min([0, 90, 180, 270], key = lambda x: abs(min_ang_dist(angle, x)))
+        angle = -min_ang_dist(angle, base) 
+        slope = atan(angle * (3.14/180))
+        points_to_line()
+        bias = pose.x - (slope * pose.y)
+        bias = (bias - (high_res_shape[1] // 2)) / (high_res_shape[1]//2)
+        return slope, bias
     def checkForMarker(self):
         if "marker" in self.state_info:
             del self.state_info["marker"]

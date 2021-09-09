@@ -23,10 +23,13 @@ base_ip = "192.168.0.2"
 ```
 
 #### Start Up Script
-
-https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-startup/
 For convenience the run that by file is launched automatically when the computer turns on
 In order to set this up you'll need to create a systemd service
+
+https://unix.stackexchange.com/questions/299192/running-a-python-script-in-conda-virtual-environment-as-service
+
+https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-startup/
+
 
 https://unix.stackexchange.com/questions/455261/how-to-set-environmental-variable-in-systemd-service
 
