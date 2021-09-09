@@ -47,6 +47,7 @@ class QrMap():
     @staticmethod
     def load(filename):
         raise(NotImplementedError)
+        
 if __name__ == '__main__':
     a = QrMap()
     print(a.get_plan(1,4))

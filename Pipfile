@@ -8,6 +8,7 @@ opencv-python = "*"
 pyzbar = {editable = true, git = "https://github.com/sushil-bharati/pyzbar"}
 imutils = "*"
 pygame = "*"
+numpy = "*"
 pyserial = "*"
 serial = "*"
 simple-pid = "*"

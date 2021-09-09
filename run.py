@@ -18,10 +18,12 @@ import socket
 control_update_topic = 'c'
 goal_update_topic = 'g'
 idle_topic = 'i'
+
 Map = QrMap()
 
-planner = Planner(Map)
 driver = Driver()
+detector = Detector()
+planner = Planner(Map)
 
 # Networking Code
 port = 5005
@@ -40,8 +42,9 @@ while not connected:
         connected = True
     except Exception as e:
         print(e)
-        print("Failed to Connect 3 secodns")
+        print("Failed to connect retrying in 3 seconds")
         time.sleep(3)
+
 running = True
 
 try:
@@ -56,9 +59,14 @@ try:
             topic, data = raw_data.split('/')
             
             if topic == control_update_topic:
+                planner.exit_plan()
                 driver.send_cmd(*[int(i) for i in data.split(",")])
+
             elif topic == goal_update_topic:
-                f = 0 
+                planner.set_goal(data)
+            
+            elif topic == "e": # For Exit
+                running = False 
             
         except Exception as e:
             print(e)
@@ -69,5 +77,6 @@ try:
                 print(e, "Delaying for 5 seconds")
                 time.sleep(5)
 finally:
+    planner.exit_plan()
     sock.close()
     driver.stop()

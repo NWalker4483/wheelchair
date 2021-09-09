@@ -73,30 +73,3 @@ while True:
     except Exception as e:
         print(type(e), e)
         joystick_check()
-
-# for event in pygame.event.get():
-#     if event.type == pygame.QUIT:
-#         running = False
-# if joystick != None:
-
-
-#     pressed = pygame.key.get_pressed()
-#     pressed = [i for i in range(len(pressed)) if pressed[i]]
-#     active = False
-#     for key in pressed:
-#         key_val = chr(key)
-#         if key_val in "qweasdzxc":
-#             publish(control_update_topic, key_val)
-#             active = True
-            
-#         elif (key_val in "1234567890"):
-#             publish("exit", key_val)
-#             print(f"Goal Set to : {key_val}")
-#             active = True
-#     if not active:
-#         pass #publish('idle', "0")
-#     # pygame.display.flip()
-#     # - constant game speed / FPS -
-#     clock.tick(FPS)
-
-# # - end -

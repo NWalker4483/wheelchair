@@ -1,52 +1,63 @@
-from driver import Driver
-from detector import Detector
-import cv2
 from simple_pid import PID
 
-def main():
-    driver = Driver('/dev/ttyACM0')
-    detector = Detector(debug = True)
-    
-    first_seen = -1
-    pid = PID(45, 27, 25.5)
+def main(driver, detector, start_marker = 1, stop_marker = 2, drive_speed = 70):
+    pid = PID(45, 0, 25.5)
     pid.setpoint = 0
-    pid.sample_time = 1/10# 10 Hz
-    
-    pid.output_limits = (-100, 100)  # Output will always be above 0, but with no upper bound
+    pid.sample_time = 1/10 # 10 Hz
+
+    deadzone = 30 
+    overlap = 5
+    started = False
+
+    # def clip(intercept_error):
+    #     return intercept_error if abs(intercept_error) > .1 else 0
+       
+    # pid.error_map = clip
+    pid.output_limits = (deadzone, 100) 
 
     while True:
         detector.update()
-        
+
         if detector.state_info.get("marker"):
             marker_id = detector.state_info["marker"]["id"]
-            if first_seen == -1:
-                first_seen = marker_id
-            if marker_id == 1:
+            if not started and marker_id == (start_marker if start_marker != -1 else marker_id):
+                started = True
+            if started and marker_id == (stop_marker if stop_marker != -1 else marker_id):
                 print("Line Complete")
                 driver.stop()
-                break
-        if first_seen != -1:
-            if detector.state_info.get("line"):    
-                m, b = detector.state_info.get("line")["slope"], detector.state_info.get("line")["bias"]
+                return
+
+        if started:
+            if detector.state_info.get("line_fused"):    
+                m, b = detector.state_info.get("line_fused")["slope"], detector.state_info.get("line_fused")["bias"]
                 i = m * detector.low_res_shape[0] + b
+
                 i -= detector.low_res_shape[1]//2
                 i /= detector.low_res_shape[1]//2
-                print(m, b, i)
-                s = 75
-                t = 0
-                if abs(i) > .30:
-                    t = 75
-                elif abs(i) > .20:
-                    t = 60
-                elif abs(i) > .10:
-                    t = 50
-                t = t if i > 0 else -t
+
+                output = pid(abs(i))
+                output = output if output > (deadzone + overlap) else 0
                 
-                driver.send_cmd(t,s)
+                # print(m, b, i)
+                # s = 75
+                # t = 0
+                # if abs(i) > .30:
+                #     t = 75
+                # elif abs(i) > .20:
+                #     t = 60
+                # elif abs(i) > .10:
+                #     t = 50
+                # t = t if i > 0 else -t
                 
-                #driver.adjust_to_line(*line_form, drive_speed = 80)
+                driver.send_cmd(output, drive_speed)
                 print("Following Line...")
         else:
-            print("Waitng to see start marker...")
+            print(f"Waitng to see start marker: ID = {start_marker}...")
 if __name__ == "__main__":
-    main()
+    from driver import Driver
+    from detector import Detector
+
+    driver = Driver('/dev/ttyACM0')
+    detector = Detector(debug = True)
+
+    main(driver, detector)

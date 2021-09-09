@@ -4,14 +4,16 @@
 `The purpose of this document is the detail the process of how to set up the navigation software on a wheelchair platform and host device. It is primarily intended for developers and will focus on the technical aspects`
 
 ### Introduction
-The wheelchair is built in python and the
+This is an autonomous wheelchair platform built primarily on Python and Arduino C. The software is run on a Raspberry pi and uses a standard camera for motion detection and line tracking.
 ### Dependancies
 
 #### Raspian
+ You can install the most recent version of raspbian By following the instructions [here](https://www.raspberrypi.org/software/).
+
+#### Python
 
 All python dependencies are managed by pipenv. You can follow the installation instructions [here](https://pipenv.pypa.io/en/latest/install/). Once you've downloaded the git repository onto both the host and wheelchair devices run ```pipenv install``` while inside the repo to install the required modules.
 In order to fix a downstream packaging issue will need to install another dependency ```sudo apt-get install libatlas-base-dev```. Also you may need to uninstall and reinstall pyserial it's a normal issue but not one I found a cause for.
-
 
 ### Networing
 You'll need to reserve an IP address for the base station you'll be using and for the wheelchair.

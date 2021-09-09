@@ -7,7 +7,8 @@ import numpy as np
 import imutils
 import time
 import cv2
-from test_fuse import predict_newline, draw_line, line_to_points, points_to_line
+from box_projection import predict_newline
+from utils import draw_line, line_to_points, points_to_line
 
 def QrPose2LineForm(pose, high_res_shape):
     angle = pose.rot
@@ -27,9 +28,6 @@ def scale_from(x, y, res_1, res_2):
     x, y = int((x/res_1[0]) * res_2[0]), int((y/res_1[1]) * res_2[1])
     return x, y
 
-def scale_line(m, b, res_1, res_2):
-    return m, b
-
 class Detector(Thread):
     def __init__(self, debug=False):
         super(Detector, self).__init__()
@@ -47,7 +45,7 @@ class Detector(Thread):
         self.patch_width = 35 #px
         self.sample_cnt = 3 # * WARNING This value is squared 
         self.swap_xy = True
-
+        # ! ajbgrvdsbivdnsieiwsnioi
         # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
         Y_, X_ = np.mgrid[0:149:self.patch_height, 0:200:self.patch_width]
         self.patch_positions = list(zip(*np.vstack([X_.ravel(), Y_.ravel()])))
@@ -101,7 +99,9 @@ class Detector(Thread):
 
     def stop(self):
         self.__alive = False
-        self.camera_stream.stop()      
+        self.camera_stream.stop()    
+        if self.debug:
+            cv2.destroyAllWindows()  
 
     def getDebugView(self):
         frame = self.high_res_view
@@ -347,13 +347,10 @@ class Detector(Thread):
             if self.state_info.get("line"):
                 # initialized
                 self.state_info["line_fused"] = self.state_info["line"]
-
                 self.initialized = True
             return
 
         curr_time = time.time()
-
-        self.tau = tau = 1/20
 
         d_t = curr_time - self.state_info["line_fused"]["sample_time"]
         if d_t >= self.tau:
@@ -361,12 +358,18 @@ class Detector(Thread):
             dx = self.state_info["velocity"]["px"] * d_t
             dy = self.state_info["velocity"]["py"] * d_t
             dr = self.state_info["velocity"]["r"] * d_t
+            # print(dx, dy, dr, d_t)
 
             mf_1, bf_1 = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
+            box_shape = self.low_res_shape[:2]
             if self.swap_xy:
                 dx, dy = dy, dx
-            
-            mp, bp = predict_newline(mf_1, bf_1, dx, dy, dr, self.low_res_shape)
+                box_shape = box_shape[::-1]
+
+            # I think Because the camera is mounted in reverse the velocities Need to be negative
+            # I don't know if this for sure but I'm making a 
+            # guess based on how the prediction moves in the opposite direction of motion when I don't flip them
+            mp, bp = predict_newline(mf_1, bf_1, -dx, -dy, dr, box_shape)
 
             m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"]
                 
@@ -449,10 +452,11 @@ if __name__ == '__main__':
     det = Detector(debug = True)
     try:
         while True:  # loop over the frames from the video stream
-            s=time.time()
+            s = time.time()
             det.update()
             print("FPS: ", 1.0 / (time.time() - s))
     except KeyboardInterrupt as e:
         print("Manual ShutOff")
     finally:
+        
         det.stop()
