@@ -19,45 +19,28 @@ class Planner():
         else:
             self.exit_plan()
             self.goal = goal_id
-        if len(current_path) == 0: 
-            current_step = -1
-            current_path = [-1]
-        if (current_goal != current_path[-1]):
-            try:
-                current_path = map.get_plan(current_path[current_step], current_goal)
-                current_step = 0
-            except Exception as e:
-                print("Invalid Goal Set")
-                raise(e)
 
     def update(self):
         self.detector.update()
         if self.detector.state_info.get("marker"):
             marker_id = self.detector.state_info.get("marker")["id"]
             if marker_id == self.goal:
-                # self.plan = self.map.get_plan
+                self.exit_plan()
+                print("Goal Reached")
                 self.driver.stop()
-                self.goal = None
-
+            elif marker_id == self.plan[self.step]:
+                self.driver.stop()
+                if len(self.plan) == 1:
+                    self.plan = self.map.get_plan(marker_id, self.goal)
+                self.step += 1
+                #direction = self.map.get_connection_direction(self.plan[self.step - 1], self.plan[self.step]) # Face Direction 
+                # driver.face(direction, detector, marker_id)
+                # driver.follow()
+                pass
+        if "line" not in self.detector.state_info:
+            pass
     def exit_plan(self):
         self.goal = None
-        self.plan = []
+        self.plan = [-1]
         self.step = 0
         self.finished = True
-            
-
-#     elif marker_id == current_path[current_step]: # We're on the next step
-#         current_step += 1
-#         if (current_step == len(current_path)) or (marker_id == current_goal):
-#             current_path = []
-#             current_goal = -1
-#             current_step = 0
-#             print("Goal Reached")
-#             continue
-#         direction = map.get_connection_direction(current_path[current_step], current_path[current_step + 1]) # Face Direction 
-#         driver.face(direction, detector, marker_id)
-#     elif (current_step == 0) or (marker_id not in current_path): # We still havent found the first marker so just 
-#         current_path = [marker_id]
-#         current_step = 0
-#         current_goal = -1
-#         continue    # Just Wait

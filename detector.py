@@ -8,9 +8,10 @@ import imutils
 import time
 import cv2
 from box_projection import predict_newline
-from utils import draw_line, line_to_points, points_to_line
+from utils import draw_line, line_to_points, points_to_line, rotate_about
 
 def QrPose2LineForm(pose, high_res_shape):
+    raise(NotImplementedError)
     angle = pose.rot
     angle -= 180 if angle > 180 else 0
     
@@ -45,7 +46,7 @@ class Detector(Thread):
         self.patch_width = 35 #px
         self.sample_cnt = 3 # * WARNING This value is squared 
         self.swap_xy = True
-        # ! ajbgrvdsbivdnsieiwsnioi
+        # ! Do NOT Hardcode ITF 
         # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
         Y_, X_ = np.mgrid[0:149:self.patch_height, 0:200:self.patch_width]
         self.patch_positions = list(zip(*np.vstack([X_.ravel(), Y_.ravel()])))
@@ -181,6 +182,16 @@ class Detector(Thread):
             frame = cv2.circle(frame, extTop, 2, (255, 0, 255), 7)
             frame = cv2.circle(frame, extBot, 2, (255, 0, 255), 7)
             frame = cv2.circle(frame, l_c, 2, (255, 255, 255), 7)
+        
+        if "vmelocity" in self.state_info:
+            scaler = 2
+            vy, vx = self.state_info["velocity"]["py"], self.state_info["velocity"]["px"]
+            vr = self.state_info["velocity"]["px"]
+            p0 = self.state_info.get("true_center", (0,0))
+            p1 = rotate_about((vx, vy), p0, vr)
+            p2 = (int(p1[0] * scaler), int(p1[1] * scaler))
+            cv2.line(frame, p0, p2, (0,0,255), 4)
+
         # Draw Center Line
         frame = cv2.line(frame, (frame.shape[1]//2, 0), (frame.shape[1]//2, frame.shape[0]),(0,233,0),2)
         

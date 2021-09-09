@@ -4,3 +4,5 @@ __pycache__/
 .vscode/
 *.pyc
 test_data/
+*.kra
+*.kra~
