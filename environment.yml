@@ -42,4 +42,9 @@ dependencies:
     - pygame==2.0.1
     - pyzbar==0.1.8
     - simple-pid==1.0.1
+variables:
+  BASE_IP: 192.168.0.2
+  CHAIR_IP: 192.168.0.1
+  COMMUNICATION_PORT: '5005'
+  JOYSTICK_PORT: /dev/ttyACM0
 prefix: /Users/nilez/opt/anaconda3/envs/wheelchair

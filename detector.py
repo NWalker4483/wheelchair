@@ -1,15 +1,12 @@
 from imutils.video import VideoStream
 from pyzbar.pyzbar import decode
 from threading import Thread
-from tf import Pose
 import numpy as np
 import imutils
 import time
 import cv2
 from box_projection import predict_newline
-from utils import draw_line, line_to_points, points_to_line, rotate_about
-
-
+from utils import draw_line, line_to_points, points_to_line, rotate_about, midpoint, distance
 
 def scale_from(x, y, res_1, res_2):
     x, y = int((x/res_1[0]) * res_2[0]), int((y/res_1[1]) * res_2[1])
@@ -49,11 +46,19 @@ class Detector(Thread):
                     qualityLevel = 0.3,
                     minDistance = 7,
                     blockSize = 7)
-        
+
+        # TODO: Convert to Pose Object
         self.state_info["velocity"] = dict()
         self.state_info["velocity"]["px"] = 0
         self.state_info["velocity"]["py"] = 0
         self.state_info["velocity"]["r"] = 0
+
+        self.update_freq = 10 
+        self.last_sample_time = time.time()
+        self.state_info["odom"] = dict()
+        self.state_info["odom"]["px"] = 0
+        self.state_info["odom"]["py"] = 0
+        self.state_info["odom"]["r"] = 0
 
         ###### Sensor Fusion
         self.initialized = False
@@ -95,7 +100,7 @@ class Detector(Thread):
   
         if "marker" in self.state_info:
             polygon = self.state_info["marker"]["polygon"]
-            pose = self.state_info["marker"]["pose"]
+            x, y, r = self.state_info["marker"]["px"], self.state_info["marker"]["py"], self.state_info["marker"]["r"]
             ID = self.state_info["marker"]["id"]
             
             # Draw QR Code corners
@@ -107,11 +112,13 @@ class Detector(Thread):
                 frame, (polygon[2].x, polygon[2].y), 12, (255, 0, 0), 5)
             frame = cv2.circle(
                 frame, (polygon[3].x, polygon[3].y), 12, (255, 255, 0), 5)
-            frame = cv2.circle(
-                frame, (int(pose.x), int(pose.y)), 6, (255, 255, 255), 2)
+            frame = cv2.circle(frame, (int(x), int(y)), 6, (255, 255, 255), 2)
 
+            x, y = int(x), int(y)
+            new_end = [int(i) for i in rotate_about((x + distance((x,y), (polygon[0].x, polygon[0].y)), y),(x,y) , r)]
+            frame = cv2.line(frame, (x,y), new_end,(255,0,0),9)
             # TODO Rotate Marker ID to match marker rotation
-            frame = cv2.putText(frame, str(ID), (int(pose.x), int(pose.y)),
+            frame = cv2.putText(frame, str(ID), (int(x), int(y)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 2.5,
                                 (0, 0, 255), 5, cv2.LINE_AA, False)
 
@@ -169,8 +176,11 @@ class Detector(Thread):
             frame = cv2.circle(frame, extBot, 2, (255, 0, 255), 7)
             frame = cv2.circle(frame, l_c, 2, (255, 255, 255), 7)
         
+        if "odom" in self.state_info:
+            pass
+        
         if "vmelocity" in self.state_info:
-            scaler = 2
+            scaler = 1
             vy, vx = self.state_info["velocity"]["py"], self.state_info["velocity"]["px"]
             vr = self.state_info["velocity"]["px"]
             p0 = self.state_info.get("true_center", (0,0))
@@ -206,7 +216,7 @@ class Detector(Thread):
             if len(green_spots) > 3:
                 avg_points.append(np.mean(green_spots, axis=0))
             mask_points += green_spots
-    
+
         self.state_info["mask_points"] = mask_points
         self.state_info["line_points"] = avg_points
 
@@ -217,7 +227,7 @@ class Detector(Thread):
                 m, b = np.polyfit(avg_points[:,1], avg_points[:,0], 1)
             else:
                 m, b = np.polyfit(avg_points[:,0], avg_points[:,1], 1)
-                
+
             m, b = round(m,3), round(b,3)
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
@@ -315,7 +325,25 @@ class Detector(Thread):
             for x, y in np.float32(p).reshape(-1, 2):
                 self.state_info["current_tracks"].append([(x, y, curr_time)])
         self.state_info["last_gray"] = gray
+
+    def updateOdometry(self):
+        curr_time = time.time()
+        d_t = curr_time - self.last_sample_time  
+        if d_t >= (1 / self.update_freq): 
+            dx = self.state_info["velocity"]["px"] * d_t
+            dy = self.state_info["velocity"]["py"] * d_t
+            dr = self.state_info["velocity"]["r"] * d_t
+            self.state_info["odom"]["r"] += dr
+            tdx, tdy = rotate_about((dx, dy), (0, 0), self.state_info["odom"]["r"])
+            self.state_info["odom"]["px"] += tdx
+            self.state_info["odom"]["py"] += tdy
+            self.last_sample_time = curr_time 
     
+    def setOdom(self, x, y, r):
+        self.state_info["odom"]["px"] = x
+        self.state_info["odom"]["py"] = y
+        self.state_info["odom"]["r"] = r
+
     def largestForegoodObject(self):
         frame = self.high_res_view
         mask = cv2.inRange(frame, self.lower_green, self.upper_green)
@@ -355,7 +383,6 @@ class Detector(Thread):
             dx = self.state_info["velocity"]["px"] * d_t
             dy = self.state_info["velocity"]["py"] * d_t
             dr = self.state_info["velocity"]["r"] * d_t
-            # print(dx, dy, dr, d_t)
 
             mf_1, bf_1 = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
             box_shape = self.low_res_shape[:2]
@@ -386,34 +413,47 @@ class Detector(Thread):
         self.checkForMarker()
         self.estimateLineForm()
         self.estimateVelocities()
+        self.updateOdometry()
         self.updateFusedMeasurements()
         #self.largestForegoodObject()
 
-        if False:# self.state_info.get("marker"): # Default to Absolute Measurement
+        if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
-            self.state_info["line"]["slope"], self.state_info["line"]["bias"] = QrPose2LineForm(self.state_info["marker"]["pose"], self.high_res_shape)
-            self.state_info["line_init"] = self.state_info["line"]
+            self.state_info["line"]["slope"], self.state_info["line"]["bias"] = self.QrPose2LineForm()
             self.state_info["line_fused"] = self.state_info["line"]
         
         if self.debug:
             cv2.imshow("Debug", self.getDebugView())
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 pass
-    def QrPose2LineForm(self, pose, high_res_shape):
-        raise(NotImplementedError)
-        angle = pose.rot
-        angle -= 180 if angle > 180 else 0
+
+    def QrPose2LineForm(self):
+        polygon = self.state_info["marker"]["polygon"] 
+        p1 = polygon[0]  # Upper Left
+        p2 = polygon[1]  # Lower Left
+        p3 = polygon[2]  # Lower Right
+        p4 = polygon[3]  # Upper Right
+
+        # If turned sideways
+        if p1[1] > p3[1] or p1[0] > p3[0]:
+            p1 = midpoint(p1, p2)
+            p2 = midpoint(p3, p4)
+        else:
+            p1 = midpoint(p1, p4)
+            p2 = midpoint(p2, p3)
+
+        p1 = scale_from(*p1, self.high_res_shape, self.low_res_shape)
+        p2 = scale_from(*p2, self.high_res_shape, self.low_res_shape)
         
-        min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
+        if self.swap_xy:
+            p1 = p1[::-1]
+            p2 = p2[::-1]
         
-        base = min([0, 90, 180, 270], key = lambda x: abs(min_ang_dist(angle, x)))
-        angle = -min_ang_dist(angle, base) 
-        slope = atan(angle * (3.14/180))
-        points_to_line()
-        bias = pose.x - (slope * pose.y)
-        bias = (bias - (high_res_shape[1] // 2)) / (high_res_shape[1]//2)
-        return slope, bias
+        m, b = points_to_line(p1, p2)
+
+        return m, b
+    
     def checkForMarker(self):
         if "marker" in self.state_info:
             del self.state_info["marker"]
@@ -421,9 +461,9 @@ class Detector(Thread):
         def sss(d, e, f):
             """ This function solves the triangle and returns (d,e,f,D,E,F) """
             assert d + e > f and e + f > d and f + d > e
-            F = acos((d**2 + e**2 - f**2) / (2 * d * e))
-            E = acos((d**2 + f**2 - e**2) / (2 * d * f))
-            D = pi - F - E
+            F = np.arccos((d**2 + e**2 - f**2) / (2 * d * e))
+            E = np.arccos((d**2 + f**2 - e**2) / (2 * d * f))
+            D = np.pi - F - E
             return (d, e, f, D, E, F)
 
         def dist(x1, y1, x2, y2):
@@ -452,11 +492,17 @@ class Detector(Thread):
             c = dist(p1.x, p1.y, frame.shape[1], p2.y) + 1e-5
             
             a, b, c, _, _, C = sss(a, b, c)
-            rot = C * (180/pi)
+            rot = C * (180/np.pi)
             
             if p1.y > p2.y:  # Flip Quadrant if upside down
                 rot = 180 + (180 - rot)
-            self.state_info["marker"]["pose"] = Pose(*np.mean([p1, p2, p3, p4], axis=0), rot=rot)
+            
+            rot = np.deg2rad(rot)
+
+            x, y = np.mean([p1, p2, p3, p4], axis=0)
+            self.state_info["marker"]["px"] = x
+            self.state_info["marker"]["py"] = y
+            self.state_info["marker"]["r"] = rot
             
 if __name__ == '__main__':
     det = Detector(debug = True)

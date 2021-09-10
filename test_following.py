@@ -38,7 +38,6 @@ def main(driver, detector, start_marker = 1, stop_marker = 2, drive_speed = 70):
                 output = pid(abs(i))
                 output = output if output > (deadzone + overlap) else 0
                 
-                # print(m, b, i)
                 # s = 75
                 # t = 0
                 # if abs(i) > .30:
@@ -56,8 +55,8 @@ def main(driver, detector, start_marker = 1, stop_marker = 2, drive_speed = 70):
 if __name__ == "__main__":
     from driver import Driver
     from detector import Detector
-
-    driver = Driver('/dev/ttyACM0')
+    import os
+    driver = Driver(os.environ.get("JOYSTICK_PORT", '/dev/ttyACM0'))
     detector = Detector(debug = True)
 
     main(driver, detector)

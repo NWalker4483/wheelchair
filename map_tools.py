@@ -1,3 +1,21 @@
+def parse_direction(direction):
+  """
+  direction {0: Top, 1: Bottom, 2: Left, 3: Right}
+
+  max_det_gap: 
+  """
+  try:
+      if type(direction) == str:
+          direction = {"top": 0 , "bottom": 1, "left": 2, "right": 3}[direction.lower().strip()]
+      else:
+          assert(type(direction) == int)
+          assert(0 <= direction <= 3)
+  except AssertionError as e:
+      raise(e)
+
+def direction2qr_rotation(direction):
+    goal_rotations = {0: 270, 1: 90, 2: 180, 3: 0}
+    return goal_rotations[direction]
 
 class QrMap():
     def __init__(self):
@@ -8,14 +26,16 @@ class QrMap():
             2: [0,3,0,1], 
             3: [0,4,0,2], 
             4: [0,1,0,3]}
+
     def node_exists(self, node_id):
-        return True
+        return node_id in self.__connections
+
     def get_connection_direction(self, start,other):
         try:
             return [i for i in range(4) if self.__connections[start][i] == other][0]
         except:
-            raise KeyError(f"A connection between qr codes {start} and {other} wasn't found")
-
+            raise KeyError(f"A direct connection between qr codes {start} and {other} wasn't found")
+            
     def get_plan(self, start: int, stop: int):
         visited = set() 
         unvisited = set(self.__connections.keys()) 

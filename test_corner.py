@@ -10,7 +10,7 @@ if __name__ == "__main__":
     from driver import Driver
     from detector import Detector
 
-    driver = Driver('/dev/ttyACM0')
+    driver = Driver()
     detector = Detector(debug = True)
 
     main(driver, detector, 1, 2, 3, "right")

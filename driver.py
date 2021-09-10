@@ -1,7 +1,7 @@
 from serial import Serial
-from utils import constrain
-from utils import rotate_about
+from utils import constrain, rotate_about
 import numpy as np
+import os
 import time
 """
 The driver class contains functions for controlling the arduino joystick 
@@ -20,7 +20,9 @@ def translate(value, leftMin, leftMax, rightMin, rightMax):
     return rightMin + (valueScaled * rightSpan)
  
 class Driver(): 
-    def __init__(self, port):
+    def __init__(self, port = None):
+        if port == None:
+            os.environ.get("JOYSTICK_PORT", '/dev/ttyACM0')
         self.attach(port) 
         self.linear = 0 # Upper Servo 
         self.angular = 0  # Lower Servo -100 : 100 - Right : Left
@@ -45,15 +47,12 @@ class Driver():
         self.send_cmd(0, 0)
 
 if __name__ == '__main__':
-    drive = Driver('/dev/ttyACM0')
+    drive = Driver(os.environ.get("JOYSTICK_PORT", '/dev/ttyACM0'))
     try:
         while True:
-            for x, y in [(100,0),(-100,0),(0,100),(0,-100),(0,0)]:
+            for angle in range(0, 360, 1):
+                x, y = rotate_about((100, 0), (0, 0), np.rad2deg(angle))
                 drive.send_cmd(x, y)
-                time.sleep(1)
-            #for angle in range(0, 360, 1):
-            #    x, y = rotate((0,100), (0, 0), angle)
-            #    drive.send_cmd(x, y)
-            #    time.sleep(1/60)
+                time.sleep(1/60)
     finally:
         drive.stop()

@@ -15,6 +15,8 @@ from map_tools import QrMap
 import time
 import socket
 
+import os
+
 control_update_topic = 'c'
 goal_update_topic = 'g'
 idle_topic = 'i'
@@ -23,11 +25,11 @@ Map = QrMap()
 
 driver = Driver()
 detector = Detector()
-planner = Planner(Map)
+planner = Planner(driver, detector, Map)
 
 # Networking Code
-port = 5005
-host = "192.168.0.2"
+port = os.getenv('CONTROL_PORT') # 5005
+host = os.getenv('BASE_IP') # 192.168.0.2 
 
 _sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 _sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

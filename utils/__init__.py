@@ -4,6 +4,15 @@ import cv2
 import numpy as np
 min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
 constrain = lambda x, min_, max_: min_ if x < min_ else (max_ if x > max_ else x)  
+import time
+def distance(p1,p2):
+  return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**.5
+def midpoint(p1,p2):
+  x1,y1 = p1
+  x2,y2 = p2
+  x_m_point = (x1 + x2)/2
+  y_m_point = (y1 + y2)/2
+  return (x_m_point, y_m_point)
 
 # https://stackoverflow.com/questions/20677795/how-do-i-compute-the-intersection-point-of-two-lines
 def find_line_intersection(m1, b1, m2, b2):
@@ -99,17 +108,4 @@ class UDPStream(Thread):
     def close(self):
         self.alive = False
         self.sock.close()
-def get_direction(direction):
-  """
-  direction {0: Top, 1: Bottom, 2: Left, 3: Right}
 
-  max_det_gap: 
-  """
-  try:
-      if type(direction) == str:
-          direction = {"top": 0 , "bottom": 1, "left": 2, "right": 3}[direction.lower().strip()]
-      else:
-          assert(type(direction) == int)
-          assert(0 <= direction <= 3)
-  except AssertionError as e:
-      raise(e)
