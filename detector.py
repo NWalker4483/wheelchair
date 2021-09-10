@@ -6,7 +6,8 @@ import imutils
 import time
 import cv2
 from box_projection import predict_newline
-from utils import draw_line, line_to_points, points_to_line, rotate_about, midpoint, distance
+from utils import draw_line
+from utils.math import line_to_points, points_to_line, rotate_about, midpoint, distance
 
 def scale_from(x, y, res_1, res_2):
     x, y = int((x/res_1[0]) * res_2[0]), int((y/res_1[1]) * res_2[1])
@@ -430,8 +431,8 @@ class Detector(Thread):
 
     def QrPose2LineForm(self):
         polygon = self.state_info["marker"]["polygon"] 
-        p1 = polygon[0]  # Upper Left
-        p2 = polygon[1]  # Lower Left
+        p1 = polygon[0]  # Upper Left 
+        p2 = polygon[1]  # Lower Left 
         p3 = polygon[2]  # Lower Right
         p4 = polygon[3]  # Upper Right
 
@@ -482,10 +483,12 @@ class Detector(Thread):
                 self.state_info["marker"]["id"] = 0
                 print("WARN: Invalid QR CODE READ: Defaulting to id = 0 for development")
             
-            p1 = marker.polygon[0]  # Upper Right
-            p2 = marker.polygon[1]  # Lower Right
-            p3 = marker.polygon[2]  # Upper Right
-            p4 = marker.polygon[3]  # Lower Right
+            p1 = marker.polygon[0] # Upper Left 
+            p2 = marker.polygon[1] # Lower Left 
+            p3 = marker.polygon[2] # Lower Right
+            p4 = marker.polygon[3] # Upper Right
+
+            # I have no idea how any of this works anymore 
             
             a = dist(p1.x, p1.y, p2.x, p2.y) + 1e-5
             b = dist(p2.x, p2.y, frame.shape[1], p2.y) + 1e-5

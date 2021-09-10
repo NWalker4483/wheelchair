@@ -1,5 +1,5 @@
-from utils import  min_ang_dist
-from map_tools import parse_direction, direction2qr_rotation
+from utils.math import  min_ang_dist
+from utils.map import parse_direction, direction2qr_rotation
 from simple_pid import PID
 import numpy as np
 
@@ -23,9 +23,8 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, m
         if detector.state_info.get("marker"):
             if detector.state_info.get("marker")["id"] == marker_id:
                 gap = 0
-                # Flip Left and Right
-                angle_error = min_ang_dist(np.rad2deg(detector.state_info.get("marker")["r"]), goal_rotation)
-                control = -pid(angle_error)
+                angle_error = -min_ang_dist(np.rad2deg(detector.state_info.get("marker")["r"]), goal_rotation)
+                control = pid(angle_error)
                 driver.send_cmd(control, 0)
             else:
                 gap += 1
@@ -39,3 +38,4 @@ if __name__ == "__main__":
     detector = Detector(debug = True)
 
     main(driver, detector)
+

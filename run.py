@@ -10,7 +10,7 @@ from utils import UDPStream
 from driver import Driver
 from detector import Detector
 from planner import Planner
-from map_tools import QrMap
+from utils.map import QrMap
 
 import time
 import socket

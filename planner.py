@@ -1,8 +1,9 @@
 from detector import Detector
 from driver import Driver
 import test_following as tf2
-import test_facing as tf
-from threading import Thread
+import test_turning as tf
+from utils import thread_with_exception
+
 # The planner class is intended to manage the decision-making when reaching a goal
 
 class Planner():
@@ -40,12 +41,12 @@ class Planner():
                     self.step += 1
                     direction = self.map.get_connection_direction(self.plan[self.step - 1], self.plan[self.step])
                     
-                    # Execute Tested Behaviors
+                    # Execute Tested Behaviors as Functions
                     def take_step(detector, driver, Q1, Q2, direction):
                         tf.main(driver, detector, Q1, direction)
                         tf2.main(driver, detector, Q1, Q2)
                   
-                    self.process = Thread(target=take_step, args=[self.detector, self.driver, self.plan[self.step - 1], self.plan[self.step], direction])
+                    self.process = thread_with_exception(target=take_step, args=[self.detector, self.driver, self.plan[self.step - 1], self.plan[self.step], direction])
                     self.process.start()
             else:
                 if self.goal != None:
@@ -67,3 +68,6 @@ class Planner():
         self.step = 0
         self.finished = True
         self.started = False
+        if self.process:
+            self.process.raise_exception()
+            self.process.join()

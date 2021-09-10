@@ -1,5 +1,5 @@
 import test_following as tf
-import test_facing as tf2
+import test_turning as tf2
 
 def main(driver, detector, Q1, Q2, Q3, joint_dir):
     tf.main(driver, detector, start_marker=Q1, stop_marker=Q2)
