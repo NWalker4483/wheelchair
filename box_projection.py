@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
-from utils import draw_line, draw_boxpoints, get_boxpoints, points_to_line, line_to_points, rotate_about, find_line_intersection
+from utils import draw_line, draw_boxpoints, get_boxpoints
+from utils.math import points_to_line, line_to_points, rotate_about, find_line_intersection
 
 def project_viewbox(dx = 10, dy = 10, dr = .25, box_points = [(0, 1), (1,1), (1,0), (0,0)]):
   box_points = list(map(lambda pt: (pt[0] + dx, pt[1] + dy), box_points))

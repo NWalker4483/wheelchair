@@ -4,7 +4,7 @@
 # The One Script that runs automatically on startup 
 # During development phase this will control just the driver but in the 
 # final implementation this will launch both planning and driver code
-
+exit()
 from utils import UDPStream
 
 from driver import Driver
@@ -28,8 +28,8 @@ detector = Detector()
 planner = Planner(driver, detector, Map)
 
 # Networking Code
-port = os.getenv('CONTROL_PORT') # 5005
-host = os.getenv('BASE_IP') # 192.168.0.2 
+port = os.getenv('CONTROL_PORT',5005) # 5005
+host = os.getenv('BASE_IP', "192.168.0.2") # 192.168.0.2 
 
 _sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 _sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

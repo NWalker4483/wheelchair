@@ -7,15 +7,15 @@
 // TOP
 #define Y_DEADZONE 10 // NotImplemented
 #define Y_MAX 2200  // Forward/Reverse
-#define Y_ZERO 1700
-#define Y_MIN 1100  // Forward/Reverse
+#define Y_ZERO 1600
+#define Y_MIN 1000  // Forward/Reverse
 // BOTTOM
 #define X_DEADZONE 10 // NotImplemented
-#define X_MAX 2400 // Left/Right
-#define X_ZERO 1700
-#define X_MIN 1000 // Left/Right
+#define X_MAX   2300 // Left/Right
+#define X_ZERO 1650
+#define X_MIN 1100 // Left/Right
 
-#define CONFIG 0
+#define CONFIG 1
 
 #define TIMEOUT_SECONDS 2
 #define MANUAL2AUTO_DELAY 3

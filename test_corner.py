@@ -13,4 +13,4 @@ if __name__ == "__main__":
     driver = Driver()
     detector = Detector(debug = True)
 
-    main(driver, detector, 1, 2, 3, "right")
+    main(driver, detector, 1, 4, 2, "left")

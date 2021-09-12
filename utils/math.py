@@ -2,6 +2,7 @@
 import numpy as np
 
 min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
+min_rad_dist = lambda a, b: (b - a) if abs(a - b) < abs((2 * np.pi) - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - (2* np.pi))
 
 def distance(p1,p2):
   return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**.5

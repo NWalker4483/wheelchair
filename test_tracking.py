@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from utils import rotate_about
+from utils.math import rotate_about
 
 def main(detector, explore_area = (500, 500), sample_freq = 10):
     x, y, r = explore_area[0]//2, explore_area[1]//2, 0

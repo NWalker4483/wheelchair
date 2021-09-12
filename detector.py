@@ -21,8 +21,8 @@ class Detector(Thread):
         self.iter_num = 0 
 
         ####### Image Masking
-        self.lower_green = np.array([22, 50 , 25])
-        self.upper_green = np.array([70, 255, 255])
+        self.lower_green = np.array([28, 50 , 25])
+        self.upper_green = np.array([50, 255, 230])
         
         ####### Line Estimation
         # Separate the image into patches 
@@ -63,7 +63,7 @@ class Detector(Thread):
 
         ###### Sensor Fusion
         self.initialized = False
-        self.alpha = .8
+        self.alpha = .7
         self.tau = 1/20
 
         ###### Image Capturing
@@ -75,8 +75,8 @@ class Detector(Thread):
 
         self.hl_ratio = 3
 
-        self.camera_stream = VideoStream(usePiCamera = False)
-        # self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
+        self.camera_stream = VideoStream(usePiCamera = True)
+        self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
         self.camera_stream.start()
         
         time.sleep(2)  # Warm Up camera
@@ -116,7 +116,7 @@ class Detector(Thread):
             frame = cv2.circle(frame, (int(x), int(y)), 6, (255, 255, 255), 2)
 
             x, y = int(x), int(y)
-            new_end = [int(i) for i in rotate_about((x + distance((x,y), (polygon[0].x, polygon[0].y)), y),(x,y) , r)]
+            new_end = tuple([int(i) for i in rotate_about((x + distance((x,y), (polygon[0].x, polygon[0].y)), y),(x,y) , r)])
             frame = cv2.line(frame, (x,y), new_end,(255,0,0),9)
             # TODO Rotate Marker ID to match marker rotation
             frame = cv2.putText(frame, str(ID), (int(x), int(y)),
@@ -355,6 +355,10 @@ class Detector(Thread):
     
     def readCameraFeed(self):
         frame = self.camera_stream.read()
+        self.raw_res_shape = frame.shape
+        self.raw_res_view = frame
+        
+        
         frame = imutils.resize(frame, width=400)
         self.high_res_shape = frame.shape
         self.high_res_view = frame
@@ -450,10 +454,11 @@ class Detector(Thread):
         if self.swap_xy:
             p1 = p1[::-1]
             p2 = p2[::-1]
-        
-        m, b = points_to_line(p1, p2)
-
-        return m, b
+        try:
+            m, b = points_to_line(p1, p2)
+        except ZeroDivisionError as e:
+            m, b = 1e-5, midpoint(p1,p2)[1]
+        return m, b 
     
     def checkForMarker(self):
         if "marker" in self.state_info:

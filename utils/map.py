@@ -12,8 +12,10 @@ def parse_direction(direction):
           assert(0 <= direction <= 3)
   except AssertionError as e:
       raise(e)
+  return direction
 
 def direction2qr_rotation(direction):
+    direction = parse_direction(direction)
     goal_rotations = {0: 270, 1: 90, 2: 180, 3: 0}
     return goal_rotations[direction]
 
