@@ -1,3 +1,4 @@
+import numpy as np
 def parse_direction(direction):
   """
   direction {0: Top, 1: Bottom, 2: Left, 3: Right}
@@ -14,7 +15,7 @@ def parse_direction(direction):
 
 def direction2qr_rotation(direction):
     direction = parse_direction(direction)
-    goal_rotations = {0: 270, 1: 90, 2: 180, 3: 0}
+    goal_rotations = {0: 0, 1: np.deg2rad(180), 2: np.deg2rad(90), 3: np.deg2rad(-90)}
     return goal_rotations[direction]
 
 class QrMap():
@@ -34,7 +35,7 @@ class QrMap():
             self.__connections[Q2] = [0,0,0,0]
         self.__connections[Q1][parse_direction(dir1)] = Q2
         self.__connections[Q2][parse_direction(dir2)] = Q1
-        print(self.__connections)
+     
     def node_exists(self, node_id):
         return node_id in self.__connections
 
@@ -50,25 +51,29 @@ class QrMap():
         best = {start: start}
         cost = {start: 0}
         plan = []
+        assert(start in unvisited)
         
         while len(unvisited) > 0:
             curr = min(unvisited, key = lambda x : cost[x] if x in cost else 10e15)
+            
             if curr == stop:
                 while curr != start:
                     plan.append(curr)
                     curr = best[curr]
                 plan.append(start)
+                break
                 
             for neighbour in self.__connections[curr]:
                 distance = 1
-                if neighbour > 0:
+                if neighbour == 0:
+                    continue
+                else:
                   if neighbour not in visited:
                     cost[neighbour] = cost[curr] + distance
                     best[neighbour] = curr
                   elif cost[curr] + distance < cost[neighbour]:
                     cost[neighbour] = cost[curr] + distance
                     best[neighbour] = curr
-                    
             unvisited.remove(curr)
             visited.add(curr)
         return plan[::-1]
@@ -78,5 +83,9 @@ class QrMap():
         raise(NotImplementedError)
         
 if __name__ == '__main__':
-    a = QrMap()
-    print(a.get_plan(1,4))
+    map_ = QrMap()
+    
+    map_.add_connection(1, "right", 2, "bottom")
+    map_.add_connection(2, "left", 3, "bottom")
+    map_.add_connection(3, "left", 4, "bottom")
+    print(map_.get_plan(1,4))

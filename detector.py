@@ -1,6 +1,6 @@
 from typing import Sized
 from utils.box_projection import predict_newline
-from utils.math import points_to_line, rotate_about, midpoint, distance
+from utils.math import points_to_line, rotate_about, midpoint, distance, min_ang_dist, angle_between
 from imutils.video import VideoStream
 from utils.draw import draw_line
 from pyzbar.pyzbar import decode
@@ -31,8 +31,8 @@ class Detector(Thread):
         self.hl_ratio = 3
         self.filename = filename
         if self.filename == None:
-            self.camera_stream = VideoStream(usePiCamera = False)
-            #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
+            self.camera_stream = VideoStream(usePiCamera = True)
+            self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
             self.camera_stream.start()
         else:
             self.video_stream = cv2.VideoCapture(filename)
@@ -469,17 +469,6 @@ class Detector(Thread):
     def checkForMarker(self):
         if "marker" in self.state_info:
             del self.state_info["marker"]
-        """find the two left side corners of a QR marker and return it to pose and ID"""
-        def sss(d, e, f):
-            """ This function solves the triangle and returns (d,e,f,D,E,F) """
-            assert d + e > f and e + f > d and f + d > e
-            F = np.arccos((d**2 + e**2 - f**2) / (2 * d * e))
-            E = np.arccos((d**2 + f**2 - e**2) / (2 * d * f))
-            D = np.pi - F - E
-            return (d, e, f, D, E, F)
-
-        def dist(x1, y1, x2, y2):
-            return ((x1-x2)**2 + (y1-y2)**2)**.5
         
         frame = self.high_res_view
         
@@ -498,20 +487,13 @@ class Detector(Thread):
             p2 = marker.polygon[1] # Lower Left 
             p3 = marker.polygon[2] # Lower Right
             p4 = marker.polygon[3] # Upper Right
-
-            # I have no idea how any of this works anymore 
             
-            a = dist(p1.x, p1.y, p2.x, p2.y) + 1e-5
-            b = dist(p2.x, p2.y, frame.shape[1], p2.y) + 1e-5
-            c = dist(p1.x, p1.y, frame.shape[1], p2.y) + 1e-5
+            v1 = (p1[0]-p2[0], p1[1]-p2[1])
+  
+            rot = angle_between(v1, [0,1])
             
-            a, b, c, _, _, C = sss(a, b, c)
-            rot = C * (180/np.pi)
-            
-            if p1.y > p2.y:  # Flip Quadrant if upside down
-                rot = 180 + (180 - rot)
-            
-            rot = np.deg2rad(rot)
+            if v1[0] < 0: # Q3
+                rot = -rot
 
             x, y = np.mean([p1, p2, p3, p4], axis=0)
             self.state_info["marker"]["px"] = x
@@ -524,7 +506,7 @@ if __name__ == '__main__':
         while True:  # loop over the frames from the video stream
             s = time.time()
             det.update()
-            print("FPS: ", 1.0 / (time.time() - s))
+            #print("FPS: ", 1.0 / (time.time() - s))
     except KeyboardInterrupt as e:
         print("Manual ShutOff")
     finally:

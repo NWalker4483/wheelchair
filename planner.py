@@ -7,10 +7,12 @@ from utils import thread_with_exception
 # The planner class is intended to manage the decision-making when reaching a goal
 
 class Planner():
-    def __init__(self, driver, detector, map):
+    def __init__(self, driver, detector, map_):
         self.driver = driver
         self.detector = detector
-        self.map = map
+        self.map = map_
+        self.process = None
+        
         self.goal = None
         self.started = False
         self.finished = True
@@ -24,6 +26,8 @@ class Planner():
             else:
                 self.exit_plan()
                 self.goal = goal_id
+                self.finished = False
+                self.started = False
         else:
             print(f"QR Code {goal_id} does not exist in the provided map file")
 
@@ -68,6 +72,42 @@ class Planner():
         self.step = 0
         self.finished = True
         self.started = False
-        if self.process:
+        if self.process != None:
             self.process.raise_exception()
             self.process.join()
+            self.process = None
+def main(planner, start, stop):
+    first_pass = True
+    planner.set_goal(stop)
+    while True:
+        planner.update()
+        if planner.finished and first_pass:
+            planner.set_goal(start)
+            first_pass = False
+            print("Running in Reverse")
+        elif planner.finished:
+            print("Test Completed")
+            return 
+            
+if __name__ == "__main__":
+    from driver import Driver
+    from detector import Detector
+    from utils.map import QrMap
+
+    driver = Driver()
+    detector = Detector()
+    map_ = QrMap()
+
+    """
+      2__3
+    __|  |
+      1  4
+    """
+    map_.add_connection(1, "right", 2, "bottom")
+    map_.add_connection(2, "left", 3, "bottom")
+    map_.add_connection(3, "left", 4, "bottom")
+    print(map_.get_plan(1,4))
+
+    planner = Planner(driver, detector, map_)
+
+    main(planner, 1 , 4)

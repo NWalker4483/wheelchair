@@ -1,10 +1,10 @@
-from utils.math import  min_ang_dist, min_rad_dist
+from utils.math import  min_ang_dist, min_rad_dist, angle_between, rotate_about
 from utils.map import parse_direction, direction2qr_rotation
 from simple_pid import PID
 import numpy as np
 
 def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, hold_time = 1):
-    pid = PID(10, .21285, 8)
+    pid = PID(170, 40, 10)
     pid.setpoint = 0
     pid.sample_time = 1/10 # 10 Hz
     pid.output_limits = (-100, 100) 
@@ -23,7 +23,7 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, h
     running = True
     
     while running:
-        if abs(angle_error) < tolerance:
+        if abs(angle_error) < np.deg2rad(tolerance):
             #TODO Use time.time()
             held_for += 1
         if held_for > (hold_time * 24):
@@ -31,11 +31,11 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, h
             break
             
         detector.update()
-        
-        if detector.state_info.get("marker"):
-            if detector.state_info.get("marker")["id"] == marker_id:
+        marker_data = detector.state_info.get("marker")
+        if not isinstance(marker_data, type(None)):
+            if marker_data["id"] == marker_id:
                 last_pose_rotation = detector.state_info["odom"]["r"]
-                marker_rot = detector.state_info.get("marker")["r"]
+                marker_rot = marker_data["r"]
                 current_rotation = marker_rot
                 started = True
         else:
@@ -45,9 +45,17 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, h
             else:
                 print("waiting to start")
         if started:
-            angle_error = -min_ang_dist(np.rad2deg(current_rotation), goal_rotation)
-            print(np.rad2deg(current_rotation),angle_error)
+            v1 = rotate_about((0,1),(0,0),goal_rotation)
+            v2 = rotate_about((0,1),(0,0),current_rotation)
+            d1 = rotate_about((0,1),(0,0),goal_rotation + np.deg2rad(90))
+            d2 = rotate_about((0,1),(0,0),goal_rotation - np.deg2rad(90))
+            
+            a1 = angle_between(v1, v2)
+            if angle_between(v2,d1) > angle_between(v2,d2):
+                a1 = -a1
+            angle_error = a1
             control = pid(angle_error)
+            print(control)
             driver.send_cmd(0, control)
     driver.stop()
 
@@ -58,5 +66,5 @@ if __name__ == "__main__":
     driver = Driver()
     detector = Detector(debug = True)
 
-    main(driver, detector, 4, "left")
+    main(driver, detector, 1, "right")
 
