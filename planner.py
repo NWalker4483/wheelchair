@@ -14,9 +14,9 @@ class Planner():
         self.process = None
         
         self.goal = None
+        self.last_seen = None
         self.started = False
         self.finished = True
-        self.step = 0
         self.plan = []
 
     def set_goal(self, goal_id):
@@ -30,46 +30,40 @@ class Planner():
                 self.started = False
         else:
             print(f"QR Code {goal_id} does not exist in the provided map file")
-
+    def travel_path(self):
+        path = self.plan
+        for i in range(len(path) - 1):
+            print(path,i)
+            direction = self.map.get_connection_direction(path[i], path[i+1])   
+            tf.main(self.driver, self.detector, path[i], direction)
+            tf2.main(self.driver, self.detector, path[i], path[i + 1])
+        print("Goal Reached")
+    
     def update(self):
-        self.detector.update()
+        if not self.started: # Gotta 
+            self.detector.update()
         if self.detector.state_info.get("marker"):
             marker_id = self.detector.state_info.get("marker")["id"]
-            if self.started:
-                if marker_id == self.goal:
-                    self.driver.stop()
-                    self.exit_plan()
-                    print("Goal Reached")
-                elif marker_id == self.plan[self.step]:
-                    self.driver.stop()
-                    self.step += 1
-                    direction = self.map.get_connection_direction(self.plan[self.step - 1], self.plan[self.step])
-                    
-                    # Execute Tested Behaviors as Functions
-                    def take_step(detector, driver, Q1, Q2, direction):
-                        tf.main(driver, detector, Q1, direction)
-                        tf2.main(driver, detector, Q1, Q2)
-                  
-                    self.process = thread_with_exception(target=take_step, args=[self.detector, self.driver, self.plan[self.step - 1], self.plan[self.step], direction])
-                    self.process.start()
-            else:
-                if self.goal != None:
-                    self.start_plan(marker_id, self.goal)
-        if "line" not in self.detector.state_info:
-            # Stop after a while of no detections
-            pass
+            self.last_seen = marker_id
+            if not self.started and self.goal != None:
+                self.start_plan(marker_id, self.goal)
+            if marker_id == self.goal:
+                self.exit_plan()
+        if self.process != None and not self.process.is_alive():
+            self.exit_plan()
 
     def start_plan(self, start, stop):
         self.goal = stop
         self.plan = self.map.get_plan(start, self.goal) 
-        self.step = 0
         self.finished = False
         self.started = True
+        self.driver.stop()
+        self.process = thread_with_exception(target=self.travel_path, args=[])
+        self.process.start()
 
     def exit_plan(self):
         self.goal = None
-        self.plan = [-1]
-        self.step = 0
+        self.plan = []
         self.finished = True
         self.started = False
         if self.process != None:
@@ -95,7 +89,7 @@ if __name__ == "__main__":
     from utils.map import QrMap
 
     driver = Driver()
-    detector = Detector()
+    detector = Detector(filename=0,debug=True)
     map_ = QrMap()
 
     """
@@ -106,7 +100,6 @@ if __name__ == "__main__":
     map_.add_connection(1, "right", 2, "bottom")
     map_.add_connection(2, "left", 3, "bottom")
     map_.add_connection(3, "left", 4, "bottom")
-    print(map_.get_plan(1,4))
 
     planner = Planner(driver, detector, map_)
 

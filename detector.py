@@ -83,7 +83,7 @@ class Detector(Thread):
 
         ###### Sensor Fusion
         self.initialized = False
-        self.alpha = .7
+        self.alpha = .2
         self.tau = 1/20
 
         ###### MultiThreading
@@ -409,8 +409,8 @@ class Detector(Thread):
             m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"]
                 
             # Apply filtering
-            mf = mp * self.alpha + m * (1 - self.alpha)
-            bf = bp * self.alpha + b * (1 - self.alpha)
+            mf = m# mp * self.alpha + m * (1 - self.alpha)
+            bf = b#bp * self.alpha + b * (1 - self.alpha)
             
             self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
             self.state_info["line_fused"]["sample_time"] = curr_time
