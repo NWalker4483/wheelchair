@@ -1,8 +1,6 @@
 def parse_direction(direction):
   """
   direction {0: Top, 1: Bottom, 2: Left, 3: Right}
-
-  max_det_gap: 
   """
   try:
       if type(direction) == str:
@@ -20,15 +18,23 @@ def direction2qr_rotation(direction):
     return goal_rotations[direction]
 
 class QrMap():
-    def __init__(self):
+    def __init__(self, connections = None, file = None):
         """All the time the option to be connected to another note through one of four directions"""
-        self.__connections = {
-            # [top, bottom, left, right]
-            1: [0,2,0,4], 
-            2: [0,3,0,1], 
-            3: [0,4,0,2], 
-            4: [0,1,0,3]}
+        self.__connections = {}
+        # # [top, bottom, left, right]
+        # 1: [0,2,0,4], 
+        # 2: [0,3,0,1], 
+        # 3: [0,4,0,2], 
+        # 4: [0,1,0,3]}
 
+    def add_connection(self, Q1, dir1, Q2, dir2):
+        if Q1 not in self.__connections:
+            self.__connections[Q1] = [0,0,0,0]
+        if Q2 not in self.__connections:
+            self.__connections[Q2] = [0,0,0,0]
+        self.__connections[Q1][parse_direction(dir1)] = Q2
+        self.__connections[Q2][parse_direction(dir2)] = Q1
+        print(self.__connections)
     def node_exists(self, node_id):
         return node_id in self.__connections
 

@@ -46,7 +46,7 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, h
                 print("waiting to start")
         if started:
             angle_error = -min_ang_dist(np.rad2deg(current_rotation), goal_rotation)
-            print(np.rad2deg(current_rotation),angle_error )
+            print(np.rad2deg(current_rotation),angle_error)
             control = pid(angle_error)
             driver.send_cmd(0, control)
     driver.stop()

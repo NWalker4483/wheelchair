@@ -6,3 +6,5 @@ variables:
   COMMUNICATION_PORT: '5005'
   JOYSTICK_PORT: /dev/ttyACM0
 prefix: /Users/nilez/opt/anaconda3/envs/wheelchair
+
+https://github.com/sushil-bharati/pyzbar

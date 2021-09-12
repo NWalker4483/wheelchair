@@ -19,8 +19,8 @@ def main(driver, detector, record_frames= False, video_file = None, wait_for_tri
             raise(AssertionError("In order to lock in a speed you must have wait for trigger set to true"))
     """
     if record_frames:
-        fourcc = None
-        out = cv2.VideoWriter(video_file, cv2.VideoWriter_fourcc(*'XVID'), 30.0, detector.raw_res_shape[:2][::-1], True)    
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        out = cv2.VideoWriter(video_file, fourcc, 30.0, detector.raw_res_shape[:2][::-1], True)    
     X = [] # Slope and Bias
     y = [] # Linear and angular control Input
 

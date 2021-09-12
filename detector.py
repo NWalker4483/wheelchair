@@ -1,24 +1,44 @@
+from typing import Sized
+from utils.box_projection import predict_newline
+from utils.math import points_to_line, rotate_about, midpoint, distance
 from imutils.video import VideoStream
+from utils.draw import draw_line
 from pyzbar.pyzbar import decode
 from threading import Thread
 import numpy as np
 import imutils
 import time
 import cv2
-from box_projection import predict_newline
-from utils import draw_line
-from utils.math import line_to_points, points_to_line, rotate_about, midpoint, distance
 
 def scale_from(x, y, res_1, res_2):
     x, y = int((x/res_1[0]) * res_2[0]), int((y/res_1[1]) * res_2[1])
     return x, y
 
 class Detector(Thread):
-    def __init__(self, debug=False):
+    def __init__(self, filename = None, debug=False):
         super(Detector, self).__init__()
         self.debug = debug
         self.state_info = dict()
         self.iter_num = 0 
+        
+        ###### Image Capturing
+        self.high_res_shape = None
+        self.low_res_shape = None
+        
+        self.high_res_view = None
+        self.low_res_view = None
+
+        self.hl_ratio = 3
+        self.filename = filename
+        if self.filename == None:
+            self.camera_stream = VideoStream(usePiCamera = False)
+            #self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
+            self.camera_stream.start()
+        else:
+            self.video_stream = cv2.VideoCapture(filename)
+            
+        time.sleep(2)  # Warm Up camera
+        self.readCameraFeed()
 
         ####### Image Masking
         self.lower_green = np.array([28, 50 , 25])
@@ -66,22 +86,7 @@ class Detector(Thread):
         self.alpha = .7
         self.tau = 1/20
 
-        ###### Image Capturing
-        self.high_res_shape = None
-        self.low_res_shape = None
-        
-        self.high_res_view = None
-        self.low_res_view = None
-
-        self.hl_ratio = 3
-
-        self.camera_stream = VideoStream(usePiCamera = True)
-        self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
-        self.camera_stream.start()
-        
-        time.sleep(2)  # Warm Up camera
-        self.readCameraFeed()
-
+        ###### MultiThreading
         self.daemeon = True
         self.__alive = True
         # self.start()
@@ -92,7 +97,10 @@ class Detector(Thread):
 
     def stop(self):
         self.__alive = False
-        self.camera_stream.stop()    
+        if self.filename == None:
+            self.camera_stream.stop()  
+        else:  
+            self.video_stream.release()
         if self.debug:
             cv2.destroyAllWindows()  
 
@@ -339,22 +347,20 @@ class Detector(Thread):
             self.state_info["odom"]["px"] += tdx
             self.state_info["odom"]["py"] += tdy
             self.last_sample_time = curr_time 
-    
-    def setOdom(self, x, y, r):
-        self.state_info["odom"]["px"] = x
-        self.state_info["odom"]["py"] = y
-        self.state_info["odom"]["r"] = r
 
     def largestForegoodObject(self):
         frame = self.high_res_view
         mask = cv2.inRange(frame, self.lower_green, self.upper_green)
-        contours, hierarchy= cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         sorted_contours= sorted(contours, key=cv2.contourArea, reverse= True)
         largest_item = sorted_contours[0]
         self.state_info["largest_contour"] = largest_item
     
     def readCameraFeed(self):
-        frame = self.camera_stream.read()
+        if self.filename == None:
+            frame = self.camera_stream.read()
+        else:
+            _, frame = self.video_stream.read() 
         self.raw_res_shape = frame.shape
         self.raw_res_view = frame
         

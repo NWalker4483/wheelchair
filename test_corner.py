@@ -1,9 +1,9 @@
 import test_following as tf
-import test_turning as tf2
+import test_turning as tt
 
 def main(driver, detector, Q1, Q2, Q3, joint_dir):
     tf.main(driver, detector, start_marker=Q1, stop_marker=Q2)
-    tf2.main(driver, detector, marker_id=Q2, direction=joint_dir)
+    tt.main(driver, detector, marker_id=Q2, direction=joint_dir)
     tf.main(driver, detector, start_marker=Q2, stop_marker=Q3)
 
 if __name__ == "__main__":

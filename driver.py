@@ -1,6 +1,6 @@
 from serial import Serial
 from utils import constrain
-from utils.math import rotate_about
+from utils.math import rotate_about, translate
 import numpy as np
 import os
 import time
@@ -9,17 +9,7 @@ The driver class contains functions for controlling the arduino joystick
 and high-level operations like facing right, left, stopping etc.
 Once manual control is added back to also monitor the state of manual 
 input versus the automated control"""
-def translate(value, leftMin, leftMax, rightMin, rightMax):
-    # Figure out how 'wide' each range is
-    leftSpan = leftMax - leftMin
-    rightSpan = rightMax - rightMin
 
-    # Convert the left range into a 0-1 range (float)
-    valueScaled = float(value - leftMin) / float(leftSpan)
-
-    # Convert the 0-1 range into a value in the right range.
-    return rightMin + (valueScaled * rightSpan)
- 
 class Driver(): 
     def __init__(self, port = None):
         if port == None:
