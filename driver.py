@@ -31,7 +31,7 @@ class Driver():
         self.ser.write(bytearray(values))
  
     def send_speed(self, x, r):
-        # I'd like to be able to set
+        # I'd like to be able to set a velocity once Detector.estimateVelocities is reliable 
         raise(NotImplementedError)
     
     def stop(self):

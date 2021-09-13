@@ -2,12 +2,50 @@ name: wheelchair
 channels:
   - defaults
 dependencies:
- 
+  - bzip2=1.0.8=h1de35cc_0
+  - c-ares=1.17.1=h9ed2024_0
+  - ca-certificates=2021.7.5=hecd8cb5_1
+  - certifi=2021.5.30=py37hecd8cb5_0
+  - curl=7.78.0=h7bc2e8c_0
+  - expat=2.4.1=h23ab428_2
+  - gettext=0.21.0=h7535e17_0
+  - git=2.32.0=pl5262h6cd52fe_1
+  - icu=58.2=h0a44026_3
+  - krb5=1.19.2=hcd88c3b_0
+  - libcurl=7.78.0=hb8e4fae_0
+  - libcxx=12.0.0=h2f01273_0
+  - libedit=3.1.20210714=h9ed2024_0
+  - libev=4.33=haf1e3a3_0
+  - libffi=3.3=hb1e8313_2
+  - libiconv=1.16=h1de35cc_0
+  - libnghttp2=1.41.0=h7580e61_2
+  - libssh2=1.9.0=ha12b0ac_1
+  - libxml2=2.9.12=hcdb78fc_0
+  - llvm-openmp=12.0.0=h0dcd299_1
+  - ncurses=6.2=h0a44026_1
+  - openssl=1.1.1l=h9ed2024_0
+  - pcre2=10.35=h1de35cc_1
+  - perl=5.26.2=h4e221da_0
+  - pip=21.0.1=py37hecd8cb5_0
+  - python=3.7.11=h88f2d9e_0
+  - readline=8.1=h9ed2024_0
+  - setuptools=52.0.0=py37hecd8cb5_0
+  - sqlite=3.36.0=hce871da_0
+  - tk=8.6.10=hb0a8c7a_0
+  - wheel=0.37.0=pyhd3eb1b0_1
+  - xz=5.2.5=h1de35cc_0
+  - zlib=1.2.11=h1de35cc_3
   - pip:
     - imutils==0.5.4
     - numpy==1.21.2
     - opencv-python==4.5.3.56
+    - py-spy==0.3.9
     - pygame==2.0.1
     - pyzbar==0.1.8
     - simple-pid==1.0.1
-
+variables:
+  BASE_IP: 192.168.0.2
+  CHAIR_IP: 192.168.0.1
+  COMMUNICATION_PORT: '5005'
+  JOYSTICK_PORT: /dev/ttyACM0
+prefix: /Users/nilez/opt/anaconda3/envs/wheelchair

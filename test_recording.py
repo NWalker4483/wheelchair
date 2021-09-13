@@ -1,6 +1,4 @@
-from sklearn import tree
 import cv2
-import numpy as np 
 
 def main(driver, detector, record_frames= False, video_file = None, wait_for_trigger=True, lock_speed=0):
     """
