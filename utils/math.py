@@ -1,6 +1,9 @@
 
 import numpy as np
 
+def sign(a):
+    return 1 if a > 0 else -1
+    
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
     return vector / np.linalg.norm(vector)
@@ -86,4 +89,4 @@ def turn_clockwise(v1, v2):
   d1 = rotate_about((0,1),(0,0),v2 + np.deg2rad(90))
   d2 = rotate_about((0,1),(0,0),v2 - np.deg2rad(90))
             
-  return (angle_between(v1,d1) > angle_between(v1,d2)).all() 
+  return (angle_between(v1,d1) > angle_between(v1,d2)).all()

@@ -37,22 +37,20 @@ class Planner():
             direction = self.map.get_connection_direction(path[i], path[i+1])   
             tf.main(self.driver, self.detector, path[i], direction)
             tf2.main(self.driver, self.detector, path[i], path[i + 1])
-        print("Goal Reached")
+        self.exit_plan()
+        print(f"Goal {path[-1]} Reached")
     
     def update(self):
-        if not self.started: # Gotta 
+        if not self.started: # TODO: Make Detector.update Thread Safe 
             self.detector.update()
-        if self.detector.state_info.get("marker"):
-            marker_id = self.detector.state_info.get("marker")["id"]
-            self.last_seen = marker_id
+        marker_info = self.detector.state_info.get("marker", None)
+        if marker_info != None:
+            self.last_seen = marker_info["id"]
             if not self.started and self.goal != None:
-                self.start_plan(marker_id, self.goal)
-            if marker_id == self.goal:
-                self.exit_plan()
-        if self.process != None and not self.process.is_alive():
-            self.exit_plan()
+                self.start_plan(self.last_seen, self.goal)
 
     def start_plan(self, start, stop):
+        print("Start Plan Called")
         self.goal = stop
         self.plan = self.map.get_plan(start, self.goal) 
         self.finished = False
@@ -62,14 +60,15 @@ class Planner():
         self.process.start()
 
     def exit_plan(self):
+        print("Exit Plan Called")
         self.goal = None
         self.plan = []
-        self.finished = True
-        self.started = False
         if self.process != None:
             self.process.raise_exception()
-            self.process.join()
+            #self.process.join()
             self.process = None
+        self.finished = True
+        self.started = False
             
 def main(planner, start, stop):
     first_pass = True
@@ -90,7 +89,7 @@ if __name__ == "__main__":
     from utils.map import QrMap
 
     driver = Driver()
-    detector = Detector(filename=0,debug=True)
+    detector = Detector(debug=not True)
     map_ = QrMap()
 
     """

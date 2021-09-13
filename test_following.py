@@ -12,9 +12,9 @@ def main(driver, detector, start_marker = 1, stop_marker = 2, drive_speed = 80):
             marker_id = detector.state_info["marker"]["id"]
             if not started and marker_id == (start_marker if start_marker != -1 else marker_id):
                 started = True
-                print("Following Line...")
+                print(f"Started Line Following from {start_marker} to {stop_marker}...")
             if started and marker_id == (stop_marker if stop_marker != -1 else marker_id):
-                print("Line Complete")
+                print("Line Following Complete")
                 driver.stop()
                 break
 
@@ -23,7 +23,6 @@ def main(driver, detector, start_marker = 1, stop_marker = 2, drive_speed = 80):
                 m, b = detector.state_info.get("line_fused")["slope"], detector.state_info.get("line_fused")["bias"]
                 
                 i = m * (detector.low_res_shape[0]//1) + b
-                print(m,b,i)
                 i -= detector.low_res_shape[1]//2
                 i /= detector.low_res_shape[1]//2
                 i *= 100
@@ -32,7 +31,7 @@ def main(driver, detector, start_marker = 1, stop_marker = 2, drive_speed = 80):
                 
                 driver.send_cmd(-drive_speed, output)
         else:
-            print(f"Waitng to see start marker: ID = {start_marker}...")
+            print(f"Waiting to see start marker: ID = {start_marker}...")
 if __name__ == "__main__":
     from driver import Driver
     from detector import Detector
