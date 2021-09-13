@@ -28,7 +28,7 @@ class Detector(Thread):
         self.high_res_view = None
         self.low_res_view = None
 
-        self.hl_ratio = 3
+        self.hl_ratio = 3 # Not yet used 
         self.filename = filename
         if self.filename == None:
             self.camera_stream = VideoStream(usePiCamera = True)
@@ -50,7 +50,7 @@ class Detector(Thread):
         self.patch_width = 35 #px
         self.sample_cnt = 3 # * WARNING This value is squared 
         self.swap_xy = True
-        # ! Do NOT Hardcode ITF 
+        # ! Do NOT Hardcode Low Res Size ITF 
         # https://stackoverflow.com/questions/12864445/how-to-convert-the-output-of-meshgrid-to-the-corresponding-array-of-points
         Y_, X_ = np.mgrid[0:149:self.patch_height, 0:200:self.patch_width]
         self.patch_positions = list(zip(*np.vstack([X_.ravel(), Y_.ravel()])))
@@ -280,31 +280,26 @@ class Detector(Thread):
             r_speeds = []
             
             for track in self.state_info.get("current_tracks", []): 
-                track = np.array(track)
                 # Shift the Plane of tracked point Away from the pixel 
                 # Origin and toward the center of rotation for the robot
                 # So that rotation can be calculated
+                track = np.array(track)
                 times = track[:,-1]
                 track = track[:,:2]
                 track -= self.state_info["true_center"] 
 
-                time_deltas = times[1:] - times[:-1]
-                track_deltas = track[1:] - track[:-1]
-                track_speeds = track_deltas
-                track_speeds[:,0] /= time_deltas
-                track_speeds[:,1] /= time_deltas
+                time_delta = times[-1] - times[0]
+                track_delta = track[0] - track[-1]
 
-                track_r_speeds = [] # average ang dist in radians
-                for vector_1, vector_2, delta_t in zip(track[1:], track[:-1], time_deltas):
-                    # Determine the minimum angular distance and direction travel between the start and stop
+                track_speeds = track_delta / time_delta
 
-                    dr = angle_between(vector_1, vector_2)
-                    dr = dr if turn_clockwise(vector_1, vector_2) else -dr
+                # Determine the minimum angular distance and direction travel between the start and stop
+                vector_1, vector_2 = track[0], track[-1]
+                dr = angle_between(vector_1, vector_2)
+                dr = dr if turn_clockwise(vector_1, vector_2) else -dr
 
-                    track_r_speeds.append(dr/delta_t)
-                
-                v_x, v_y = np.mean(track_speeds, 0)
-                v_r = np.mean(track_r_speeds)
+                v_x, v_y = track_speeds
+                v_r = np.mean(dr/time_delta)
 
                 x_speeds.append(v_x)
                 y_speeds.append(v_y)
@@ -493,7 +488,7 @@ class Detector(Thread):
             self.state_info["marker"]["r"] = rot
             
 if __name__ == '__main__':
-    det = Detector(debug = True)
+    det = Detector(filename="/Users/nilez/Jobs/Morgan/wheelchair/L.avi",debug = True)
     try:
         while True:  # loop over the frames from the video stream
             s = time.time()
@@ -504,3 +499,4 @@ if __name__ == '__main__':
     finally:
         
         det.stop()
+# sudo py-spy record -o profile.svg -- python3.7 detector.py

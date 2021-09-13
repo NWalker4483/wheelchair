@@ -1,10 +1,2 @@
 Add usb joystick support to the run.py file 
-
-variables:
-  BASE_IP: 192.168.0.2
-  CHAIR_IP: 192.168.0.1
-  COMMUNICATION_PORT: '5005'
-  JOYSTICK_PORT: /dev/ttyACM0
-prefix: /Users/nilez/opt/anaconda3/envs/wheelchair
-
-https://github.com/sushil-bharati/pyzbar
+Figure out conda issues

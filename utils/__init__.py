@@ -1,6 +1,6 @@
 from threading import Thread
 import time
-import cv2
+
 import numpy as np
 constrain = lambda x, min_, max_: min_ if x < min_ else (max_ if x > max_ else x)  
 
