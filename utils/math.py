@@ -1,9 +1,6 @@
 
 import numpy as np
 
-min_ang_dist = lambda a, b: (b - a) if abs(a - b) < abs(360 - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - 360)
-min_rad_dist = lambda a, b: (b - a) if abs(a - b) < abs((2 * np.pi) - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - (2* np.pi))
-
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
     return vector / np.linalg.norm(vector)
@@ -83,4 +80,10 @@ def translate(value, leftMin, leftMax, rightMin, rightMax):
 
     # Convert the 0-1 range into a value in the right range.
     return rightMin + (valueScaled * rightSpan)
- 
+    
+def turn_clockwise(v1, v2):
+  # Determine whether the shortest rotation between two vector is Counterclockwise or clockwise
+  d1 = rotate_about((0,1),(0,0),v2 + np.deg2rad(90))
+  d2 = rotate_about((0,1),(0,0),v2 - np.deg2rad(90))
+            
+  return (angle_between(v1,d1) > angle_between(v1,d2)).all() 

@@ -1,9 +1,10 @@
-from utils.math import  min_ang_dist, min_rad_dist, angle_between, rotate_about
+from utils.math import angle_between, rotate_about
 from utils.map import parse_direction, direction2qr_rotation
 from simple_pid import PID
 import numpy as np
 
 def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, hold_time = 1):
+    print(f"Started QR Facing Test {marker_id}")
     pid = PID(140, 60, 30)
     pid.setpoint = 0
     pid.sample_time = 1/10 # 10 Hz
@@ -55,7 +56,6 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 5, h
                 a1 = -a1
             angle_error = a1
             control = pid(angle_error)
-            print(control)
             driver.send_cmd(0, control)
     driver.stop()
 

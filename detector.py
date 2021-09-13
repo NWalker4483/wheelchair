@@ -1,6 +1,6 @@
 from typing import Sized
 from utils.box_projection import predict_newline
-from utils.math import points_to_line, rotate_about, midpoint, distance, min_ang_dist, angle_between
+from utils.math import points_to_line, rotate_about, midpoint, distance, angle_between, turn_clockwise
 from imutils.video import VideoStream
 from utils.draw import draw_line
 from pyzbar.pyzbar import decode
@@ -296,18 +296,12 @@ class Detector(Thread):
 
                 track_r_speeds = [] # average ang dist in radians
                 for vector_1, vector_2, delta_t in zip(track[1:], track[:-1], time_deltas):
-                    # While making the assumption that the distance traveled will be less than 2pi radians 
-                    # Determine the minimum angular distance and direction travel between the start and stop at actor
-                    # TODO: I have an actually tested the map below here so it might be giving me BS results or rotations in the wrong direction
-                    unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
-                    unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
+                    # Determine the minimum angular distance and direction travel between the start and stop
 
-                    angle_1 = np.arccos(np.dot(unit_vector_1, [0,1]))
-                    angle_2 = np.arccos(np.dot(unit_vector_2, [0,1]))
-                    
-                    min_rad_dist = lambda a, b: (b - a) if abs(a - b) < abs((2*np.pi) - max(a,b) + min(a,b)) else (max(a,b) + min(a,b) - (2*np.pi))
-                    
-                    track_r_speeds.append(min_rad_dist(angle_1, angle_2)/delta_t)
+                    dr = angle_between(vector_1, vector_2)
+                    dr = dr if turn_clockwise(vector_1, vector_2) else -dr
+
+                    track_r_speeds.append(dr/delta_t)
                 
                 v_x, v_y = np.mean(track_speeds, 0)
                 v_r = np.mean(track_r_speeds)
@@ -316,7 +310,7 @@ class Detector(Thread):
                 y_speeds.append(v_y)
                 r_speeds.append(v_r)
                 
-            self.state_info["velocity"]["px"] = np.mean(x_speeds)
+            self.state_info["velocity"]["px"] = 0 # WheelChair Cant Strafe so I'm setting this to zero expicitly for rn np.mean(x_speeds)
             self.state_info["velocity"]["py"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
 
@@ -409,24 +403,20 @@ class Detector(Thread):
             m, b = self.state_info["line_last"]["slope"], self.state_info["line_last"]["bias"]
                 
             # Apply filtering
-            mf = m# mp * self.alpha + m * (1 - self.alpha)
+            # TODO: Check or prevent nan predictions 
+            mf = m#mp * self.alpha + m * (1 - self.alpha)
             bf = b#bp * self.alpha + b * (1 - self.alpha)
             
             self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
             self.state_info["line_fused"]["sample_time"] = curr_time
 
-    def update(self):     
-        self.iter_num += 1
-        if self.iter_num % (24*4) == 0:
-            # Reinitialize
-            self.initialized = False
+    def update(self):
         self.readCameraFeed()
         self.checkForMarker()
         self.estimateLineForm()
         self.estimateVelocities()
         self.updateOdometry()
         self.updateFusedMeasurements()
-        #self.largestForegoodObject()
 
         if self.state_info.get("marker"): # Default to Absolute Measurement
             self.state_info["line"] = dict()
@@ -492,7 +482,9 @@ class Detector(Thread):
   
             rot = angle_between(v1, [0,1])
             
-            if v1[0] < 0: # Q3
+            #TODO: Convert Q4 and Q3 into postive radian values
+            #TODO: Rewrite above TODO
+            if v1[0] < 0: # Q3 + Q4 
                 rot = -rot
 
             x, y = np.mean([p1, p2, p3, p4], axis=0)

@@ -30,10 +30,10 @@ class Planner():
                 self.started = False
         else:
             print(f"QR Code {goal_id} does not exist in the provided map file")
+
     def travel_path(self):
         path = self.plan
         for i in range(len(path) - 1):
-            print(path,i)
             direction = self.map.get_connection_direction(path[i], path[i+1])   
             tf.main(self.driver, self.detector, path[i], direction)
             tf2.main(self.driver, self.detector, path[i], path[i + 1])
@@ -70,6 +70,7 @@ class Planner():
             self.process.raise_exception()
             self.process.join()
             self.process = None
+            
 def main(planner, start, stop):
     first_pass = True
     planner.set_goal(stop)
