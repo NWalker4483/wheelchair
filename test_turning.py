@@ -53,7 +53,7 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, h
             else:
                 print("waiting to first start marker")
         if started:
-            # TODO: Swap in utils.math.turn_clockwise function 
+            # TODO: Swap in utils.math.turn_clockwise function to consolidata 
             v1 = rotate_about((0,1),(0,0),goal_rotation)
             v2 = rotate_about((0,1),(0,0),current_rotation)
             d1 = rotate_about((0,1),(0,0),goal_rotation + np.deg2rad(90))

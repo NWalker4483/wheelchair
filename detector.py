@@ -19,8 +19,7 @@ class Detector(Thread):
         super(Detector, self).__init__()
         self.debug = debug
         self.state_info = dict()
-        self.iter_num = 0 
-        
+
         ###### Image Capturing
         self.high_res_shape = None
         self.low_res_shape = None
@@ -70,15 +69,15 @@ class Detector(Thread):
 
         # TODO: Convert to Pose Object
         self.state_info["velocity"] = dict()
-        self.state_info["velocity"]["px"] = 0
-        self.state_info["velocity"]["py"] = 0
+        self.state_info["velocity"]["x"] = 0
+        self.state_info["velocity"]["y"] = 0
         self.state_info["velocity"]["r"] = 0
 
         self.update_freq = 10 
         self.last_sample_time = time.time()
         self.state_info["odom"] = dict()
-        self.state_info["odom"]["px"] = 0
-        self.state_info["odom"]["py"] = 0
+        self.state_info["odom"]["x"] = 0
+        self.state_info["odom"]["y"] = 0
         self.state_info["odom"]["r"] = 0
 
         ###### Sensor Fusion
@@ -109,7 +108,7 @@ class Detector(Thread):
   
         if "marker" in self.state_info:
             polygon = self.state_info["marker"]["polygon"]
-            x, y, r = self.state_info["marker"]["px"], self.state_info["marker"]["py"], self.state_info["marker"]["r"]
+            x, y, r = self.state_info["marker"]["x"], self.state_info["marker"]["y"], self.state_info["marker"]["r"]
             ID = self.state_info["marker"]["id"]
             
             # Draw QR Code corners
@@ -190,8 +189,8 @@ class Detector(Thread):
         
         if "vmelocity" in self.state_info:
             scaler = 1
-            vy, vx = self.state_info["velocity"]["py"], self.state_info["velocity"]["px"]
-            vr = self.state_info["velocity"]["px"]
+            vy, vx = self.state_info["velocity"]["y"], self.state_info["velocity"]["x"]
+            vr = self.state_info["velocity"]["x"]
             p0 = self.state_info.get("true_center", (0,0))
             p1 = rotate_about((vx, vy), p0, vr)
             p2 = (int(p1[0] * scaler), int(p1[1] * scaler))
@@ -210,7 +209,7 @@ class Detector(Thread):
         frame = self.low_res_view
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.lower_green, self.upper_green)
+        self.state_info["mask"] = mask = cv2.inRange(hsv, self.lower_green, self.upper_green)
         
         avg_points = []
         mask_points = []
@@ -305,8 +304,8 @@ class Detector(Thread):
                 y_speeds.append(v_y)
                 r_speeds.append(v_r)
                 
-            self.state_info["velocity"]["px"] = 0 # WheelChair Cant Strafe so I'm setting this to zero expicitly for rn np.mean(x_speeds)
-            self.state_info["velocity"]["py"] = np.mean(y_speeds)
+            self.state_info["velocity"]["x"] = 0 # WheelChair Cant Strafe so I'm setting this to zero expicitly for rn np.mean(x_speeds)
+            self.state_info["velocity"]["y"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
 
         # TODO: I shouldn't need this every frame
@@ -328,13 +327,13 @@ class Detector(Thread):
         curr_time = time.time()
         d_t = curr_time - self.last_sample_time  
         if d_t >= (1 / self.update_freq): 
-            dx = self.state_info["velocity"]["px"] * d_t
-            dy = self.state_info["velocity"]["py"] * d_t
+            dx = self.state_info["velocity"]["x"] * d_t
+            dy = self.state_info["velocity"]["y"] * d_t
             dr = self.state_info["velocity"]["r"] * d_t
             self.state_info["odom"]["r"] += dr
             tdx, tdy = rotate_about((dx, dy), (0, 0), self.state_info["odom"]["r"])
-            self.state_info["odom"]["px"] += tdx
-            self.state_info["odom"]["py"] += tdy
+            self.state_info["odom"]["x"] += tdx
+            self.state_info["odom"]["y"] += tdy
             self.last_sample_time = curr_time 
 
     def largestForegoodObject(self):
@@ -380,8 +379,8 @@ class Detector(Thread):
         d_t = curr_time - self.state_info["line_fused"]["sample_time"]
         if d_t >= self.tau:
             # Update the predicted value
-            dx = self.state_info["velocity"]["px"] * d_t
-            dy = self.state_info["velocity"]["py"] * d_t
+            dx = self.state_info["velocity"]["x"] * d_t
+            dy = self.state_info["velocity"]["y"] * d_t
             dr = self.state_info["velocity"]["r"] * d_t
 
             mf_1, bf_1 = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
@@ -483,8 +482,8 @@ class Detector(Thread):
                 rot = -rot
 
             x, y = np.mean([p1, p2, p3, p4], axis=0)
-            self.state_info["marker"]["px"] = x
-            self.state_info["marker"]["py"] = y
+            self.state_info["marker"]["x"] = x
+            self.state_info["marker"]["y"] = y
             self.state_info["marker"]["r"] = rot
             
 if __name__ == '__main__':
