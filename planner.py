@@ -35,8 +35,8 @@ class Planner():
         path = self.plan
         for i in range(len(path) - 1):
             direction = self.map.get_connection_direction(path[i], path[i+1])   
-            tf.main(self.driver, self.detector, path[i], direction)
-            tf2.main(self.driver, self.detector, path[i], path[i + 1])
+            tf.main(self.driver, self.detector, path[i], direction) # Face next destination 
+            tf2.main(self.driver, self.detector, path[i], path[i + 1]) # Follow Line
         self.exit_plan()
         print(f"Goal {path[-1]} Reached")
     
