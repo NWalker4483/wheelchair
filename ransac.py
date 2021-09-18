@@ -25,7 +25,7 @@ flann = cv2.FlannBasedMatcher(index_params, search_params)
 
 # bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
-orb = cv2.ORB_create(nfeatures=500)
+orb = cv2.ORB_create(nfeatures=250)
 
 MIN_MATCHES = 50
 
@@ -42,8 +42,8 @@ while True:
     good_matches = []
     try:
         kp1, des1 = orb.detectAndCompute(last, None)
-        kp2, des2 = orb.detectAndCompute(frame, None)
-        matches = flann.knnMatch(des1, des2, k=2)
+        #kp2, des2 = orb.detectAndCompute(frame, None)
+        matches = []#flann.knnMatch(des1, des2, k=2)
         matchesMask = [[0,0] for i in range(len(matches))]
     
         # ratio test as per Lowe's paper
@@ -60,8 +60,6 @@ while True:
     except Exception as e:
         print(e,3)
 
-   
-    
     if len(good_matches) >= MIN_MATCHES:
         old_points = np.float32([kp1[m.queryIdx].pt for m in good_matches])
         curr_points = np.float32([kp2[m.trainIdx].pt for m in good_matches])
@@ -75,8 +73,7 @@ while True:
                    flags = 0)
         
         display = cv2.drawMatchesKnn(last, kp1, frame, kp2, matches, None, **draw_params)
-
     last = frame
-    cv2.imshow("3", display)
+    cv2.imshow("3", frame)
     cv2.waitKey(1)
     

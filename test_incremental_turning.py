@@ -6,7 +6,7 @@ import numpy as np
 def main(driver, detector, marker_id = 0, turns = 1, direction = "right", turn_speed = 70):
     print(f"Started QR Facing Test {marker_id}")
     direction = parse_direction(direction)
-
+    turn_speed = -turn_speed if direction == 2 else turn_speed
     running = True
     started = False
     turns_made = 0

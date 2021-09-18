@@ -69,13 +69,14 @@ class Detector(Thread):
 
         # TODO: Convert to Pose Object
         self.state_info["velocity"] = dict()
+        self.state_info["velocity"]["sample_time"] = time.time()
         self.state_info["velocity"]["x"] = 0
         self.state_info["velocity"]["y"] = 0
         self.state_info["velocity"]["r"] = 0
 
         self.update_freq = 10 
-        self.last_sample_time = time.time()
         self.state_info["odom"] = dict()
+        self.state_info["odom"]["sample_time"] = time.time()
         self.state_info["odom"]["x"] = 0
         self.state_info["odom"]["y"] = 0
         self.state_info["odom"]["r"] = 0
@@ -113,13 +114,13 @@ class Detector(Thread):
             
             # Draw QR Code corners
             frame = cv2.circle(
-                frame, (polygon[0].x, polygon[0].y), 12, (0, 255, 0), 5)
+                frame, (polygon[0].x, polygon[0].y), 9, (255, 0, 0), 5)
             frame = cv2.circle(
-                frame, (polygon[1].x, polygon[1].y), 12, (0, 0, 255), 5)
+                frame, (polygon[1].x, polygon[1].y), 10, (0, 255, 0), 5)
             frame = cv2.circle(
-                frame, (polygon[2].x, polygon[2].y), 12, (255, 0, 0), 5)
+                frame, (polygon[2].x, polygon[2].y), 11, (0, 0, 255), 5)
             frame = cv2.circle(
-                frame, (polygon[3].x, polygon[3].y), 12, (255, 255, 0), 5)
+                frame, (polygon[3].x, polygon[3].y), 12, (255, 255, 255), 5)
             frame = cv2.circle(frame, (int(x), int(y)), 6, (255, 255, 255), 2)
 
             x, y = int(x), int(y)
@@ -222,7 +223,9 @@ class Detector(Thread):
                 if mask[Y+y][X+x] == 255:
                     green_spots.append([X+x, Y+y])
             if len(green_spots) > 3:
-                avg_points.append(np.mean(green_spots, axis=0))
+                mean = np.mean(green_spots, axis=0)
+                if mean[1] > 75: # TODO
+                    avg_points.append(mean)
             mask_points += green_spots
 
         self.state_info["mask_points"] = mask_points
@@ -287,24 +290,23 @@ class Detector(Thread):
                 track = track[:,:2]
                 track -= self.state_info["true_center"] 
 
-                time_delta = times[-1] - times[0]
+                time_delta = -1 * (times[0] - times[-1])
                 track_delta = track[0] - track[-1]
-
-                track_speeds = track_delta / time_delta
 
                 # Determine the minimum angular distance and direction travel between the start and stop
                 vector_1, vector_2 = track[0], track[-1]
+                vector_2[1] += track_delta[1]
+                
                 dr = angle_between(vector_1, vector_2)
                 dr = dr if turn_clockwise(vector_1, vector_2) else -dr
 
-                v_x, v_y = track_speeds
                 v_r = np.mean(dr/time_delta)
 
-                x_speeds.append(v_x)
-                y_speeds.append(v_y)
+                x_speeds.append(track_delta[0]/ time_delta)
+                y_speeds.append(track_delta[1]/ time_delta)
                 r_speeds.append(v_r)
                 
-            self.state_info["velocity"]["x"] = 0 # WheelChair Cant Strafe so I'm setting this to zero expicitly for rn np.mean(x_speeds)
+            self.state_info["velocity"]["x"] = 0 # np.mean(x_speeds) # WheelChair Cant Strafe so I'm setting this to zero expicitly for rn 
             self.state_info["velocity"]["y"] = np.mean(y_speeds)
             self.state_info["velocity"]["r"] = np.mean(r_speeds)
 
@@ -325,7 +327,7 @@ class Detector(Thread):
 
     def updateOdometry(self):
         curr_time = time.time()
-        d_t = curr_time - self.last_sample_time  
+        d_t = curr_time - self.state_info["odom"]["sample_time"]  
         if d_t >= (1 / self.update_freq): 
             dx = self.state_info["velocity"]["x"] * d_t
             dy = self.state_info["velocity"]["y"] * d_t
@@ -334,7 +336,7 @@ class Detector(Thread):
             tdx, tdy = rotate_about((dx, dy), (0, 0), self.state_info["odom"]["r"])
             self.state_info["odom"]["x"] += tdx
             self.state_info["odom"]["y"] += tdy
-            self.last_sample_time = curr_time 
+            self.state_info["odom"]["sample_time"] = curr_time 
 
     def largestForegoodObject(self):
         frame = self.high_res_view
@@ -398,8 +400,8 @@ class Detector(Thread):
                 
             # Apply filtering
             # TODO: Check or prevent nan predictions 
-            mf = m#mp * self.alpha + m * (1 - self.alpha)
-            bf = b#bp * self.alpha + b * (1 - self.alpha)
+            mf = mp * self.alpha + m * (1 - self.alpha)
+            bf = bp * self.alpha + b * (1 - self.alpha)
             
             self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"] = mf, bf
             self.state_info["line_fused"]["sample_time"] = curr_time
@@ -412,7 +414,7 @@ class Detector(Thread):
         self.updateOdometry()
         self.updateFusedMeasurements()
 
-        if self.state_info.get("marker"): # Default to Absolute Measurement
+        if self.state_info.get("marker") and False: # Default to Absolute Measurement
             self.state_info["line"] = dict()
             self.state_info["line"]["sample_time"] = time.time()
             self.state_info["line"]["slope"], self.state_info["line"]["bias"] = self.QrPose2LineForm()
@@ -487,11 +489,13 @@ class Detector(Thread):
             self.state_info["marker"]["r"] = rot
             
 if __name__ == '__main__':
-    det = Detector(filename="/Users/nilez/Jobs/Morgan/wheelchair/L.avi",debug = True)
+    det = Detector(debug = True)
     try:
         while True:  # loop over the frames from the video stream
             s = time.time()
             det.update()
+            if det.state_info.get("line") != None:
+                print(det.state_info["line"])
             #print("FPS: ", 1.0 / (time.time() - s))
     except KeyboardInterrupt as e:
         print("Manual ShutOff")
