@@ -48,6 +48,9 @@ class Planner():
             self.last_seen = marker_info["id"]
             if not self.started and self.goal != None:
                 self.start_plan(self.last_seen, self.goal)
+        if self.started and self.process != None:
+            if not self.process.is_alive():
+                self.exit_plan()
 
     def start_plan(self, start, stop):
         print("Start Plan Called")
