@@ -15,7 +15,7 @@ def parse_direction(direction):
 
 def direction2qr_rotation(direction):
     direction = parse_direction(direction)
-    goal_rotations = {0: 0, 1: np.deg2rad(180), 2: np.deg2rad(270), 3: np.deg2rad(90)}
+    goal_rotations = {0: 0, 1: np.deg2rad(180), 2: np.deg2rad(90), 3: np.deg2rad(270)}
     return goal_rotations[direction]
 
 class QrMap():

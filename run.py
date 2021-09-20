@@ -4,7 +4,7 @@
 # The One Script that runs automatically on startup 
 # During development phase this will control just the driver but in the 
 # final implementation this will launch both planning and driver code
-exit()
+
 from utils import UDPStream
 
 from driver import Driver
@@ -22,6 +22,9 @@ goal_update_topic = 'g'
 idle_topic = 'i'
 
 Map = QrMap()
+Map.add_connection(1, "right", 2, "bottom")
+Map.add_connection(2, "left", 3, "bottom")
+Map.add_connection(2, "top", 4, "bottom")
 
 driver = Driver()
 detector = Detector()
@@ -30,7 +33,7 @@ planner = Planner(driver, detector, Map)
 # Networking Code
 port = os.getenv('CONTROL_PORT',5005) # 5005
 host = os.getenv('BASE_IP', "192.168.0.2") # 192.168.0.2 
-
+print(host, port)
 _sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 _sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -52,6 +55,8 @@ running = True
 try:
     while running:
         try:
+            # Update Planner
+            planner.update()
             # Grab Data from Listener
             if time.time() - sock.data["cap_time"] <= .5:
                 raw_data = sock.data["last"]
@@ -59,14 +64,15 @@ try:
                 raw_data = "i/0"
                 
             topic, data = raw_data.split('/')
+            #print(topic, data)
             
             if topic == control_update_topic:
                 planner.exit_plan()
                 driver.send_cmd(*[int(i) for i in data.split(",")])
 
             elif topic == goal_update_topic:
-                planner.set_goal(data)
-            
+                planner.set_goal(int(data))
+                #exit()
             elif topic == "e": # For Exit
                 running = False 
             

@@ -106,5 +106,5 @@ if __name__ == "__main__":
     map_.add_connection(3, "left", 4, "bottom")
 
     planner = Planner(driver, detector, map_)
-
-    main(planner, 1 , 4)
+    while True:
+        main(planner, 1 , 4)
