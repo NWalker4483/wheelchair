@@ -36,8 +36,8 @@ class Detector(Thread):
             self.camera_stream.stream.camera.shutter_speed = 2000 # Drop shutter speed to reduce motion blur
             self.camera_stream.start()
         else:
-            self.file_fps = 30
             self.video_stream = cv2.VideoCapture(filename)
+            self.file_fps = 30
             
         time.sleep(2)  # Warm Up camera
         self.readCameraFeed()
