@@ -4,7 +4,7 @@ from simple_pid import PID
 import time
 import numpy as np
 
-def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, hold_time = 1):
+def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, hold_time = 1, skip_start = False):
     print(f"Started QR Facing Test {marker_id}")
     pid = PID(170, 60, 45)
     pid.setpoint = 0
@@ -16,6 +16,11 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, h
 
     started = False
     current_rotation = 0
+    if skip_start:
+        started = True
+        raise(NotImplementedError)
+        current_rotation
+
     start_hold = 0
 
     error = tolerance # TODO: Use other visual ques to determine rotation
@@ -52,6 +57,7 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, h
                 print(f"Predicted Rotation {np.rad2deg(current_rotation)}")
             else:
                 print("waiting to first start marker")
+
         if started:
             # TODO: Swap in utils.math.turn_clockwise function to consolidata 
             v1 = rotate_about((0,1),(0,0),goal_rotation)

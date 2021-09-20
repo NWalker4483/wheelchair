@@ -2,21 +2,21 @@
 import numpy as np
 
 def sign(a):
-    return 1 if a > 0 else -1
+  """ ... """
+  return 1 if a > 0 else -1
     
 def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
+  """ Returns the unit vector of the vector.  """
+  return vector / np.linalg.norm(vector)
 
 def angle_between(v1, v2):
     """ Returns the angle in radians between vectors 'v1' and 'v2'::
-
-            >>> angle_between((1, 0, 0), (0, 1, 0))
-            1.5707963267948966
-            >>> angle_between((1, 0, 0), (1, 0, 0))
-            0.0
-            >>> angle_between((1, 0, 0), (-1, 0, 0))
-            3.141592653589793
+        >>> angle_between((1, 0, 0), (0, 1, 0))
+        1.5707963267948966
+        >>> angle_between((1, 0, 0), (1, 0, 0))
+        0.0
+        >>> angle_between((1, 0, 0), (-1, 0, 0))
+        3.141592653589793
     """
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
@@ -51,7 +51,9 @@ def find_line_intersection(m1, b1, m2, b2):
     return x, y
 
 def points_to_line(p1, p2):
-  # when given two points, return a slope and bias value which will intersect with those given points
+  """ when given two points, 
+  returns a slope and bias value which will intersect with those given points
+  """
   x1, y1 = p1
   x2, y2 = p2
   m = (y2 - y1) / (x2 - x1)
@@ -59,7 +61,7 @@ def points_to_line(p1, p2):
   return m, b
 
 def line_to_points(m, b):
-  # Return origin and unit vector
+  # Returns origin and unit vector
   return (0, 0), (1, m + b)
 
 def rotate_about(point, origin, radians):
