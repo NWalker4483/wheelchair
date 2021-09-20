@@ -102,7 +102,8 @@ class Detector(Thread):
         self.MIN_MATCHES = 50
         self.orb = cv2.ORB_create(nfeatures=250)
 
-        self.update_freq = 15
+        self.update_freq = 5
+        
         self.state_info["odom"] = dict()
         self.state_info["odom"]["sample_time"] = time.time()
         self.state_info["odom"]["x"] = 0
@@ -252,8 +253,7 @@ class Detector(Thread):
                     green_spots.append([X+x, Y+y])
             if len(green_spots) > 3:
                 mean = np.mean(green_spots, axis=0)
-                if mean[1] > 75: # TODO
-                    avg_points.append(mean)
+                avg_points.append(mean)
             mask_points += green_spots
 
         self.state_info["mask_points"] = mask_points
@@ -393,7 +393,7 @@ class Detector(Thread):
                     if success:
                         dx, dy, dz = translation_vector
                         dr = rotation_vector[2][0]
-                        print(dx, dy, dz, *rotation_vector)
+                        #print(dx, dy, dz, *rotation_vector)
 
                         self.state_info["odom"]["r"] += dr
                         tdx, tdy = rotate_about((dx, dy), (0, 0), self.state_info["odom"]["r"])
@@ -424,7 +424,14 @@ class Detector(Thread):
         if self.state_info.get("line"):
             self.state_info["line_last"] = self.state_info["line"]
             self.state_info["line_last"]["odom"] = self.state_info["odom"]
-
+        
+        if self.state_info.get("marker"): # Default to Absolute Measurement
+            self.state_info["line"] = dict()
+            self.state_info["line"]["sample_time"] = time.time()
+            self.state_info["line"]["slope"], self.state_info["line"]["bias"] = self.QrPose2LineForm()
+            self.state_info["line_fused"] = self.state_info["line"]
+            return
+        
         if not self.initialized:
             if self.state_info.get("line"):
                 # initialized
@@ -437,7 +444,7 @@ class Detector(Thread):
         d_t = curr_time - self.state_info["line_fused"]["sample_time"]
         if d_t >= self.tau:
             # Update the predicted value
-            dx = self.state_info["odom"]
+            dx = 0#self.state_info["odom"]
             dy = 0
             dr = 0
             mf_1, bf_1 = self.state_info["line_fused"]["slope"], self.state_info["line_fused"]["bias"]
@@ -470,14 +477,8 @@ class Detector(Thread):
         self.updateOdometry()
 
         # TODO: Update to use odometry values instead of velocity
-        #self.updateFusedMeasurements()
+        self.updateFusedMeasurements()
 
-        if self.state_info.get("marker") and False: # Default to Absolute Measurement
-            self.state_info["line"] = dict()
-            self.state_info["line"]["sample_time"] = time.time()
-            self.state_info["line"]["slope"], self.state_info["line"]["bias"] = self.QrPose2LineForm()
-            self.state_info["line_fused"] = self.state_info["line"]
-        
         if self.debug:
             cv2.imshow("Debug", self.getDebugView())
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -540,15 +541,16 @@ class Detector(Thread):
             #TODO: Convert Q4 and Q3 into postive radian values
             #TODO: Rewrite above TODO Works but standardize Rotation Values
             if v1[0] < 0: # Q3 + Q4 
-                rot = -rot
+                rot = np.deg2rad(180) + (np.deg2rad(180) - rot)
 
             x, y = np.mean([p1, p2, p3, p4], axis=0)
             self.state_info["marker"]["x"] = x
             self.state_info["marker"]["y"] = y
             self.state_info["marker"]["r"] = rot
+            #print(rot)
             
 if __name__ == '__main__':
-    det = Detector(filename=0,debug = True)
+    det = Detector(debug = True)
     try:
         while True:  # loop over the frames from the video stream
             s = time.time()

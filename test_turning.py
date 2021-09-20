@@ -1,10 +1,10 @@
-from utils.math import angle_between, rotate_about, sign, turn_clockwise
+from utils.math import angle_between, rotate_about, sign, turn_clockwise, min_radial_distance
 from utils.map import parse_direction, direction2qr_rotation
 from simple_pid import PID
 import time
 import numpy as np
 
-def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, hold_time = 1):
+def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, hold_time = 1.5):
     print(f"Started QR Facing Test {marker_id}")
     pid = PID(170, 60, 45)
     pid.setpoint = 0
@@ -40,30 +40,14 @@ def main(driver, detector, marker_id = 0, direction = "bottom", tolerance = 7, h
                 started = True
         else:
             if started:
-                # TODO Test ... like at all
-                new_pose_rotation = detector.state_info["odom"]["r"]
-                vector_1 = rotate_about((0,1), (0,0), last_pose_rotation)
-                vector_2 = rotate_about((0,1), (0,0), new_pose_rotation)
-                
-                dr = angle_between(vector_1, vector_2)
-                dr = dr if turn_clockwise(vector_1, vector_2) else -dr
-
-                current_rotation = marker_rotation - dr
-                print(f"Predicted Rotation {np.rad2deg(current_rotation)}")
+                curr_pose_rotation = detector.state_info["odom"]["r"]
+                current_rotation = marker_rotation + min_radial_distance(last_pose_rotation, curr_pose_rotation)
             else:
-                print("waiting to first start marker")
+                print("Waiting to first start marker")
         if started:
-            # TODO: Swap in utils.math.turn_clockwise function to consolidata 
-            v1 = rotate_about((0,1),(0,0),goal_rotation)
-            v2 = rotate_about((0,1),(0,0),current_rotation)
-            d1 = rotate_about((0,1),(0,0),goal_rotation + np.deg2rad(90))
-            d2 = rotate_about((0,1),(0,0),goal_rotation - np.deg2rad(90))
-            
-            a1 = angle_between(v1, v2)
-            if angle_between(v2,d1) > angle_between(v2,d2):
-                a1 = -a1
+            a1 = -min_radial_distance(goal_rotation, current_rotation)
+            #print(np.rad2deg(a1))
             error = a1
-            
             if sign(last_error) != sign(error):
                 pid.reset()
             last_error = error
@@ -79,5 +63,5 @@ if __name__ == "__main__":
     driver = Driver()
     detector = Detector(debug = True)
 
-    main(driver, detector, 1, "right")
+    main(driver, detector, 4, "bottom")
 

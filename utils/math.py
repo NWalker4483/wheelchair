@@ -83,10 +83,34 @@ def translate(value, leftMin, leftMax, rightMin, rightMax):
 
     # Convert the 0-1 range into a value in the right range.
     return rightMin + (valueScaled * rightSpan)
+
+def min_radial_distance(r1, r2):
+    # Determine whether the shortest rotation between two vector is Counterclockwise or clockwise
+    v1 = rotate_about((0,1),(0,0), r1)
+    v2 = rotate_about((0,1),(0,0), r2)
+    
+    d1 = rotate_about((0,1),(0,0),r2 + np.deg2rad(90))
+    d2 = rotate_about((0,1),(0,0),r2 - np.deg2rad(90))
+    
+    ad1 = angle_between(v1, d1)
+    ad2 = angle_between(v1, d2)
+    
+    #print(angle_between(v1,d1), angle_between(v1,d2))
+    
+    a0 = angle_between(v1,v2)
+    if distance(v1, v2) > distance((0,1), (1,0)):
+        a0 = np.deg2rad(90) + (np.deg2rad(180) - max(ad1, ad2))
+    if ad1 > ad2:
+        a0= -a0
+    return a0 
     
 def turn_clockwise(v1, v2):
   # Determine whether the shortest rotation between two vector is Counterclockwise or clockwise
-  d1 = rotate_about((0,1),(0,0),v2 + np.deg2rad(90))
-  d2 = rotate_about((0,1),(0,0),v2 - np.deg2rad(90))
+  d1 = rotate_about((0,1),(0,0),v2 + np.deg2rad(45))
+  d2 = rotate_about((0,1),(0,0),v2 - np.deg2rad(45))
             
   return (angle_between(v1,d1) > angle_between(v1,d2)).all()
+
+#for i in range(360):
+#    print(np.rad2deg(min_radial_distance(0, np.deg2rad(i))))
+    

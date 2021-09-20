@@ -3,7 +3,7 @@ import cv2
 #TODO: Draw some representation of rotation
 from utils.math import rotate_about
 
-def main(detector, explore_area = (5000, 5000), sample_freq = 10, start_pose = None):
+def main(detector, explore_area = (2500, 2500), sample_freq = 10, start_pose = None):
     detector.update_freq = sample_freq
     x, y = 0,0
     start_pose = (explore_area[0]//2, explore_area[0]//2)
@@ -15,7 +15,7 @@ def main(detector, explore_area = (5000, 5000), sample_freq = 10, start_pose = N
         cv2.line(frame, p1, p2, (5,5,5), 10)
         cv2.circle(frame, (int(x),int(y)), 8, (255, 0, 0), -1) 
         
-        x, y = detector.state_info["odom"]["x"], detector.state_info["odom"]["y"]
+        x, y = detector.state_info["odom"]["x"]/2, detector.state_info["odom"]["y"]/2
         x, y = x + start_pose[0], y + start_pose[1]
         p1 = (x, y)
         p2 = (p1[0], p1[1] + 100)
@@ -28,5 +28,5 @@ def main(detector, explore_area = (5000, 5000), sample_freq = 10, start_pose = N
 
 if __name__ == "__main__":
     from detector import Detector
-    detector = Detector(filename="R.avi", debug = True)
+    detector = Detector(debug = True)
     main(detector)

@@ -33,6 +33,7 @@ class Planner():
 
     def travel_path(self):
         path = self.plan
+        print(f"Starting Path from {path[0]} to {path[-1]}")
         for i in range(len(path) - 1):
             direction = self.map.get_connection_direction(path[i], path[i+1])   
             tf.main(self.driver, self.detector, path[i], direction) # Face next destination 

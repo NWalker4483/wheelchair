@@ -19,8 +19,9 @@ def main(driver, detector, start_marker = 1, stop_marker = 2, drive_speed = 80):
                 break
 
         if started:
-            if detector.state_info.get("line_fused"):    
-                m, b = detector.state_info.get("line_fused")["slope"], detector.state_info.get("line_fused")["bias"]
+            line_info = detector.state_info.get("line_fused")
+            if line_info != None:    
+                m, b = line_info["slope"], line_info["bias"]
                 
                 i = m * (detector.low_res_shape[0]//1) + b
                 i -= detector.low_res_shape[1]//2
